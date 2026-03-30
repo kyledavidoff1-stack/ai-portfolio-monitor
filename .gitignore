@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# database (local data stays local)
+/data/*.db
+/data/*.db-wal
+/data/*.db-shm
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
