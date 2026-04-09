@@ -5,18 +5,18 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<string, string> = {
-  bucket1: 'bg-gray-100 text-gray-700',
-  bucket2: 'bg-blue-100 text-blue-700',
-  bucket3: 'bg-amber-100 text-amber-700',
-  bucket4: 'bg-emerald-100 text-emerald-700',
-  'risk-on': 'bg-emerald-100 text-emerald-700',
-  'risk-off': 'bg-red-100 text-red-700',
-  rotation: 'bg-blue-100 text-blue-700',
-  dislocation: 'bg-purple-100 text-purple-700',
-  confirmed: 'bg-emerald-100 text-emerald-700',
-  challenged: 'bg-red-100 text-red-700',
-  neutral: 'bg-gray-100 text-gray-600',
-  default: 'bg-gray-100 text-gray-700',
+  bucket1: 'bg-indigo-950 text-indigo-300',
+  bucket2: 'bg-blue-950 text-blue-300',
+  bucket3: 'bg-amber-950 text-amber-300',
+  bucket4: 'bg-emerald-950 text-emerald-300',
+  'risk-on': 'bg-emerald-950 text-emerald-300',
+  'risk-off': 'bg-red-950 text-red-300',
+  rotation: 'bg-blue-950 text-blue-300',
+  dislocation: 'bg-purple-950 text-purple-300',
+  confirmed: 'bg-emerald-950 text-emerald-300',
+  challenged: 'bg-red-950 text-red-300',
+  neutral: 'bg-gray-800 text-gray-400',
+  default: 'bg-gray-800 text-gray-300',
 };
 
 const sizeStyles = { sm: 'text-xs px-2 py-0.5', md: 'text-sm px-2.5 py-1' };

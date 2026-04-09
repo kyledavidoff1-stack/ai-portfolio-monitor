@@ -1,10 +1,10 @@
-# Portfolio Monitor — Technical Implementation Plan
+# Portfolio Monitor — Technical Implementation Plan v2
 
 ## For use with Claude Code
 
-**Date:** March 29, 2026
+**Date:** March 31, 2026
 **Companion document:** portfolio-monitor-product-spec.md (read this first for full product context)
-**Status:** Ready for V1 build
+**Status:** Sprints 0-2 complete. Significant layout work done beyond original plan. Revised sprint plan below.
 
 ---
 
@@ -12,104 +12,98 @@
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Financial data API | Financial Modeling Prep (FMP) | Broadest endpoint coverage: company profiles with sector/industry, financials, earnings calendar, stock peers, sector performance, historical prices. Free tier: 250 requests/day. Paid: $14/month for 300 req/min. |
+| Financial data API | Financial Modeling Prep (FMP) | Broadest endpoint coverage: company profiles with sector/industry, financials, earnings calendar, stock peers, sector performance, historical prices. Paid plan: $29/month for high request limits. |
 | Database | SQLite (via better-sqlite3) | Local-first, zero-config, no server. Matches open source philosophy. Migrate to PostgreSQL for hosted version in V2. |
-| ORM | Drizzle | Lightweight, excellent SQLite support, SQL-close, fast runtime. Better for open source contributors than Portfolio Monitora's magic. |
+| ORM | Drizzle | Lightweight, excellent SQLite support, SQL-close, fast runtime. Better for open source contributors than Prisma's magic. |
 | AI engine | Hybrid: Claude Code for prompt dev, Claude API (Sonnet) for production | Iterate prompts conversationally, deploy finalized prompts as API calls. No API cost during experimentation. Production cost: ~$3-10/month for typical usage. |
 | Prompt architecture | Pipeline (multiple focused calls per stock) | More token-efficient, easier to cache per-step, easier to debug, allows different refresh frequencies per analysis type. |
 | Frontend | Next.js App Router, server components + server actions | Simplest architecture, fewest moving parts. No separate API layer needed for V1. |
-| Styling | Tailwind CSS | Utility-first, fast iteration, consistent with open source norms. Clean, calm aesthetic per design principles. |
-| Charts | Recharts | React-native, well-documented, covers all chart types needed (line, bar, scatter, heatmap). |
+| Styling | Tailwind CSS | Dark theme. Utility-first, fast iteration. All text must have high contrast against dark backgrounds. |
+| Charts | Recharts + D3.js | Recharts for standard charts (sparklines, line, bar). D3.js with d3-sankey plugin for the Revenue Flow Sankey diagram. |
+| Layout system | react-grid-layout | All panels on both pages are draggable and resizable. Users can rearrange and resize from any edge or corner. Layout preferences persist in localStorage. |
 
 ---
 
-## 2. Project Structure
+## 2. Current Architecture
 
-```
-portfolio-monitor/
-├── src/
-│   ├── app/                      # Next.js App Router pages
-│   │   ├── layout.tsx            # Root layout (nav, regime indicator)
-│   │   ├── page.tsx              # Portfolio dashboard (default landing)
-│   │   ├── company/
-│   │   │   └── [ticker]/
-│   │   │       └── page.tsx      # Company detail page
-│   │   ├── settings/
-│   │   │   └── page.tsx          # API keys, preferences
-│   │   └── api/                  # API routes (for scan triggers)
-│   │       ├── scan/
-│   │       │   └── route.ts      # Trigger full/delta scan
-│   │       └── refresh/
-│   │           └── route.ts      # Refresh specific stock
-│   ├── components/
-│   │   ├── dashboard/            # Portfolio-level components
-│   │   │   ├── RegimeIndicator.tsx
-│   │   │   ├── AnomalyFlags.tsx
-│   │   │   ├── CorrelationHeatmap.tsx
-│   │   │   ├── BetaSummary.tsx
-│   │   │   ├── BucketDistribution.tsx
-│   │   │   ├── CatalystCalendar.tsx
-│   │   │   └── HoldingsList.tsx
-│   │   ├── company/              # Company detail components
-│   │   │   ├── FiveMetrics.tsx       # "5 Numbers That Matter" surface view
-│   │   │   ├── FullFinancials.tsx    # Expandable deep dive
-│   │   │   ├── SectorRelative.tsx    # Sector-relative valuation + charts
-│   │   │   ├── BusinessIntel.tsx
-│   │   │   ├── SentimentLayer.tsx
-│   │   │   ├── BucketAnalysis.tsx
-│   │   │   ├── ThesisTracker.tsx
-│   │   │   └── EventCalendar.tsx
-│   │   ├── charts/               # Reusable chart components
-│   │   │   ├── RelativePerformance.tsx
-│   │   │   ├── MetricTrend.tsx
-│   │   │   └── ValuationComparison.tsx
-│   │   └── ui/                   # Generic UI primitives
-│   │       ├── Card.tsx
-│   │       ├── Badge.tsx
-│   │       ├── ExpandableSection.tsx
-│   │       └── LoadingState.tsx
-│   ├── lib/
-│   │   ├── db/
-│   │   │   ├── schema.ts         # Drizzle schema definitions
-│   │   │   ├── index.ts          # DB connection
-│   │   │   └── migrations/       # Schema migrations
-│   │   ├── fmp/
-│   │   │   ├── client.ts         # FMP API client
-│   │   │   ├── fundamentals.ts   # Company profile, financials, metrics
-│   │   │   ├── prices.ts         # Historical prices, beta
-│   │   │   ├── sector.ts         # Sector classification, ETF mapping
-│   │   │   └── calendar.ts       # Earnings dates, dividends
-│   │   ├── claude/
-│   │   │   ├── client.ts         # Claude API client wrapper
-│   │   │   ├── prompts/
-│   │   │   │   ├── news-sentiment.ts     # Step 1: News + sentiment scan
-│   │   │   │   ├── fundamental-analysis.ts # Step 2: Interpret FMP data
-│   │   │   │   ├── bucket-assignment.ts   # Step 3: Four-bucket classification
-│   │   │   │   ├── thesis-check.ts        # Step 4: Thesis confirmation/challenge
-│   │   │   │   ├── catalyst-scan.ts       # Step 5: Forward event calendar
-│   │   │   │   └── regime-check.ts        # Portfolio-level regime indicator
-│   │   │   └── pipeline.ts       # Orchestrates the multi-step analysis
-│   │   ├── analysis/
-│   │   │   ├── correlation.ts    # Correlation matrix calculation
-│   │   │   ├── beta.ts           # Portfolio beta calculation
-│   │   │   ├── anomaly.ts        # Regime divergence detection
-│   │   │   └── sector-relative.ts # Sector-relative valuation
-│   │   └── config/
-│   │       ├── sector-etf-map.ts # GICS sector to ETF ticker mapping
-│   │       └── constants.ts      # Thresholds, defaults
-│   ├── types/
-│   │   └── index.ts              # Shared TypeScript types
-│   └── utils/
-│       ├── format.ts             # Number/date formatting
-│       └── cache.ts              # Cache invalidation logic
-├── drizzle.config.ts             # Drizzle configuration
-├── next.config.ts                # Next.js configuration
-├── package.json
-├── tailwind.config.ts
-├── tsconfig.json
-├── .env.local.example            # Template for API keys
-└── README.md
-```
+### Key Dependencies (added beyond original plan)
+- **react-grid-layout**: Dashboard panel system for both portfolio and company pages
+- **d3** + **d3-sankey**: Revenue Flow Sankey diagram
+- **recharts**: Sparklines, trend charts, relative performance charts
+
+### Page Structure
+
+**Portfolio Dashboard (/ route):**
+Top to bottom default layout:
+1. Top bar: Regime indicator, SPY today (price + daily change), Portfolio Beta, Positions count, Portfolio Value, Flagged count, Last Scan time, Run Full Scan button
+2. Portfolio Drivers panel (left ~45%) + Thesis Tracker panel (right ~55%) — side by side
+3. Upcoming Catalysts panel (full width) — horizontal timeline + bucket-categorized events
+4. Holdings table (left ~55%) + Correlation Heatmap (right ~45%) — side by side
+
+Holdings table features:
+- Columns: Ticker, Company/Price, Change, Mkt Val, Beta, Drivers (4 bucket dots), Thesis status, Next Event
+- Column visibility toggle (gear icon) with localStorage persistence
+- Drag-and-drop column reordering with localStorage persistence
+- Inline edit for shares, cost basis via pencil icon
+- Per-stock anomaly flag indicator
+- Optional columns available via toggle: Sector, Industry, Sector ETF, Cost Basis, P&L %
+
+All panels are draggable/resizable via react-grid-layout.
+
+**Company Detail Page (/company/[ticker] route):**
+Top to bottom default layout:
+1. Header: Ticker + Company Name + Driver summary banner + Refresh button (all one line)
+2. Metrics strip: Daily Gain, Current Price, Cost Basis, Market Value, Beta
+3. Left column (~40%): Sentiment panel, Driver Analysis panel
+4. Right column (~60%): Thesis panel, Sector Relative panel
+5. Upcoming Catalysts panel (full width) — horizontal timeline with Thesis/Macro/Sector/Sentiment/Fundamental categories
+6. Metrics That Matter panel (left ~40%) + Revenue Flow Sankey panel (right ~60%)
+7. Fundamentals panel (full width)
+
+Key panel structures:
+
+**Driver Analysis panel** — three time horizons:
+- Past 30-60 days: what drove the stock recently, bucket evolution timeline
+- Today: current session bucket assignment with 4 indicator dots + AI rationale
+- Next 30-60 days: expected dominant driver based on catalysts and macro
+
+**Thesis panel** — three time horizons:
+- Past 30-60 days: validation/challenge history with evidence timeline
+- Today: current thesis status (green/yellow/red) + AI explanation
+- Next 30-60 days: upcoming events that could validate or challenge thesis
+- Editable thesis text field at top
+
+**Sentiment panel:**
+- Overall tone indicator (bullish/bearish/neutral)
+- Per-source breakdown: Twitter/X, Reddit, Media, Analysts
+- Placeholder bars for each source until AI layer populates
+
+**Sector Relative panel** — three time horizons:
+- Past 30-60 days: relative performance chart (stock vs. sector ETF vs. SPY normalized)
+- Today: peer comparison table (Ticker, Rev Growth, Op Margin, FCF Margin, P/E) with stock highlighted and sector benchmark row
+- Next 30-60 days: forward relative outlook
+
+**Upcoming Catalysts panel:**
+- Horizontal timeline spanning 60 days with color-coded dots
+- Events categorized: Thesis, Macro, Sector, Sentiment, Fundamental
+- Each catalyst shows event name, date/days until, bucket tag, thesis relevance flag
+
+**Metrics That Matter panel:**
+- Five structured cards: Revenue & Growth, Profitability, Cash Generation, Valuation, Financial Health
+- Each card: current number, key ratio, sparkline (8 quarters), forward outlook text
+- Data populated from FMP quarterly financials
+
+**Revenue Flow Sankey panel:**
+- D3 Sankey diagram showing revenue segments → total revenue → gross profit / cost of sales → operating costs → operating profit → tax → net income
+- Each node shows dollar amount and YoY growth
+- Revenue segments populated from FMP segmentation endpoint where available; single-node fallback otherwise
+
+**Fundamentals panel:**
+- Quarterly table: Revenue, Gross Profit, Operating Income, Net Income, Free Cash Flow
+- 8 quarters of data with QoQ percentage change next to each number (green/red)
+- Expandable sections for full income statement, balance sheet, cash flow
+
+All panels are draggable/resizable via react-grid-layout.
 
 ---
 
@@ -125,22 +119,22 @@ export const holdings = sqliteTable('holdings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   ticker: text('ticker').notNull(),
   companyName: text('company_name'),
-  shares: real('shares'),                    // Optional in V1 (needed for weighted beta)
-  costBasis: real('cost_basis'),             // Optional, for P&L tracking
-  sector: text('sector'),                    // From FMP, auto-populated
-  industry: text('industry'),               // From FMP, auto-populated
-  sectorEtf: text('sector_etf'),            // Mapped from sector
-  thesis: text('thesis'),                    // User-defined investment thesis
-  addedAt: text('added_at').notNull(),       // ISO timestamp
+  shares: real('shares'),
+  costBasis: real('cost_basis'),
+  sector: text('sector'),
+  industry: text('industry'),
+  sectorEtf: text('sector_etf'),
+  thesis: text('thesis'),
+  addedAt: text('added_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });
 
 // Cached FMP fundamental data per company
 export const fundamentals = sqliteTable('fundamentals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  ticker: text('ticker').notNull(),
-  data: text('data').notNull(),              // JSON blob: revenue, margins, FCF, EPS, etc.
-  fetchedAt: text('fetched_at').notNull(),   // For cache invalidation
+  ticker: text('ticker').notNull().unique(),
+  data: text('data').notNull(),              // JSON blob: financials, metrics, peers
+  fetchedAt: text('fetched_at').notNull(),
 });
 
 // Historical price data for correlation and beta
@@ -160,23 +154,24 @@ export const analysisScans = sqliteTable('analysis_scans', {
   bucketPrimary: integer('bucket_primary'),  // 1-4
   bucketSecondary: integer('bucket_secondary'),
   bucketRationale: text('bucket_rationale'),
-  bucketConfidence: text('bucket_confidence'), // 'high', 'medium', 'low'
-  newsSentiment: text('news_sentiment'),      // JSON: news summary, sentiment scores
+  bucketConfidence: text('bucket_confidence'),
+  newsSentiment: text('news_sentiment'),      // JSON
   thesisStatus: text('thesis_status'),        // 'confirmed', 'challenged', 'neutral'
-  thesisAnalysis: text('thesis_analysis'),    // AI explanation
-  catalysts: text('catalysts'),              // JSON: array of upcoming events with impact
-  fiveMetrics: text('five_metrics'),         // JSON: the "5 Numbers That Matter" AI summary
-  sectorRelative: text('sector_relative'),   // JSON: valuation vs sector, premium/discount
-  fullAnalysis: text('full_analysis'),       // JSON: complete AI output for deep dive
+  thesisAnalysis: text('thesis_analysis'),
+  catalysts: text('catalysts'),              // JSON: array of events with bucket tags + thesis relevance
+  fiveMetrics: text('five_metrics'),         // JSON: AI-generated forward outlook per metric
+  sectorRelative: text('sector_relative'),   // JSON
+  driverAnalysis: text('driver_analysis'),   // JSON: past/today/forward driver assessment
+  fullAnalysis: text('full_analysis'),       // JSON: complete AI output
   scannedAt: text('scanned_at').notNull(),
 });
 
 // Portfolio-level regime snapshots
 export const regimeSnapshots = sqliteTable('regime_snapshots', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  regime: text('regime').notNull(),          // 'risk_on', 'risk_off', 'rotation', 'dislocation'
+  regime: text('regime').notNull(),
   rationale: text('rationale').notNull(),
-  spyChange: real('spy_change'),             // SPY daily % change
+  spyChange: real('spy_change'),
   vix: real('vix'),
   snappedAt: text('snapped_at').notNull(),
 });
@@ -185,10 +180,10 @@ export const regimeSnapshots = sqliteTable('regime_snapshots', {
 export const anomalyFlags = sqliteTable('anomaly_flags', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   ticker: text('ticker').notNull(),
-  flagType: text('flag_type').notNull(),     // 'regime_divergence', 'sector_divergence', 'thesis_challenge'
+  flagType: text('flag_type').notNull(),
   description: text('description').notNull(),
-  severity: text('severity').notNull(),      // 'high', 'medium', 'low'
-  resolved: integer('resolved').default(0),  // 0 or 1
+  severity: text('severity').notNull(),
+  resolved: integer('resolved').default(0),
   flaggedAt: text('flagged_at').notNull(),
 });
 ```
@@ -197,59 +192,32 @@ export const anomalyFlags = sqliteTable('anomaly_flags', {
 
 ## 4. FMP API Integration
 
-### 4.1 Endpoints We Use
+### 4.1 Endpoints in Use
 
 | Purpose | FMP Endpoint | Refresh Frequency |
 |---|---|---|
-| Company profile (sector, industry, beta, description) | /v3/profile/{ticker} | On ticker add, then weekly |
-| Income statement | /v3/income-statement/{ticker}?period=quarter | Daily (cached, only changes quarterly) |
-| Balance sheet | /v3/balance-sheet-statement/{ticker}?period=quarter | Daily (cached) |
-| Cash flow statement | /v3/cash-flow-statement/{ticker}?period=quarter | Daily (cached) |
-| Key metrics TTM | /v3/key-metrics-ttm/{ticker} | Daily |
+| Company profile (sector, industry, beta) | /v3/profile/{ticker} | On ticker add, then weekly |
+| Income statement | /v3/income-statement/{ticker}?period=quarter&limit=9 | Daily (cached 24h) |
+| Balance sheet | /v3/balance-sheet-statement/{ticker}?period=quarter&limit=8 | Daily (cached 24h) |
+| Cash flow statement | /v3/cash-flow-statement/{ticker}?period=quarter&limit=9 | Daily (cached 24h) |
+| Key metrics | /v3/key-metrics/{ticker}?period=quarter&limit=8 | Daily (cached 24h) |
 | Ratios TTM | /v3/ratios-ttm/{ticker} | Daily |
-| Historical daily prices | /v3/historical-price-full/{ticker} | Daily (append new day) |
+| Historical daily prices | /v3/historical-price-full/{ticker} | Daily (append) |
 | Stock peers | /v4/stock_peers?symbol={ticker} | Weekly |
+| Revenue segmentation | /v4/revenue-product-segmentation?symbol={ticker} | Weekly |
 | Earnings calendar | /v3/earning_calendar | Daily |
 | Sector performance | /v3/sector-performance | Each scan |
-| Sector historical performance | /v3/historical-sectors-performance | Each scan |
+| Quote (current price) | /v3/quote/{ticker} | Each page load |
 
-### 4.2 Rate Limit Strategy
-
-FMP free tier: 250 requests/day. A full scan of 10 stocks touches ~8 endpoints per stock = 80 requests, plus ~10 portfolio-level requests = ~90 total per full scan. This leaves room for ~1.5 full scans per day on the free tier, which is tight.
-
-**Recommendation:** Start on free tier during development. For production use, the $14/month Starter plan (300 requests/minute) removes all rate concerns. Document this clearly in the README so users know the free tier works but is limited.
+### 4.2 Rate Limit Handling
+FMP paid plan ($29/month) provides high request limits. The app includes:
+- Detection of FMP's JSON-body rate limit responses (HTTP 200 with error message)
+- Cache read guard: don't serve cached entries with empty data
+- Cache write guard: don't cache empty/error results
+- 24-hour TTL for financial data cache
 
 ### 4.3 Sector ETF Mapping
-
-```typescript
-// src/lib/config/sector-etf-map.ts
-
-export const SECTOR_ETF_MAP: Record<string, { broad: string; name: string }> = {
-  'Technology':              { broad: 'XLK', name: 'Technology Select Sector' },
-  'Healthcare':              { broad: 'XLV', name: 'Health Care Select Sector' },
-  'Financial Services':      { broad: 'XLF', name: 'Financial Select Sector' },
-  'Consumer Cyclical':       { broad: 'XLY', name: 'Consumer Discretionary Select Sector' },
-  'Consumer Defensive':      { broad: 'XLP', name: 'Consumer Staples Select Sector' },
-  'Energy':                  { broad: 'XLE', name: 'Energy Select Sector' },
-  'Industrials':             { broad: 'XLI', name: 'Industrial Select Sector' },
-  'Basic Materials':         { broad: 'XLB', name: 'Materials Select Sector' },
-  'Real Estate':             { broad: 'XLRE', name: 'Real Estate Select Sector' },
-  'Utilities':               { broad: 'XLU', name: 'Utilities Select Sector' },
-  'Communication Services':  { broad: 'XLC', name: 'Communication Services Select Sector' },
-};
-
-// Optional sub-sector ETFs for more precise comparison
-export const INDUSTRY_ETF_MAP: Record<string, string> = {
-  'Semiconductors':          'SOXX',
-  'Biotechnology':           'XBI',
-  'Software - Infrastructure': 'IGV',
-  'Banks - Regional':        'KRE',
-  'Oil & Gas E&P':           'XOP',
-  'Homebuilders':            'XHB',
-  'Retail':                  'XRT',
-  // Expand as needed
-};
-```
+Static 11-row lookup in src/lib/config/sector-etf-map.ts mapping GICS sectors to SPDR ETFs. Optional industry-level sub-sector ETF mappings (e.g., Semiconductors → SOXX). Sector classification pulled automatically from FMP company profile.
 
 ---
 
@@ -257,30 +225,40 @@ export const INDUSTRY_ETF_MAP: Record<string, string> = {
 
 ### 5.1 Pipeline Architecture
 
-Each stock runs through a multi-step analysis pipeline. Each step is a focused Claude API call. Steps can be cached and refreshed independently.
+Each stock runs through a multi-step analysis pipeline. Steps can be cached and refreshed independently.
 
 ```
 Step 1: News & Sentiment Scan (web search enabled)
-   ↓ outputs: news_summary, sentiment_scores, social_buzz
-Step 2: Fundamental Interpretation (uses FMP data as input, no web search)
-   ↓ outputs: five_metrics, growth_assessment, margin_analysis
+   ↓ outputs: news_summary, sentiment_scores (overall, twitter, reddit, media, analysts), social_buzz
+
+Step 2: Fundamental Interpretation (uses FMP data, no web search)
+   ↓ outputs: five_metrics forward outlook text for each of the 5 cards
+
 Step 3: Sector-Relative Context (uses FMP data + sector ETF data)
-   ↓ outputs: valuation_vs_sector, premium_trend, correlation_note
+   ↓ outputs: past_60d_relative_performance, forward_relative_outlook
+
 Step 4: Bucket Assignment (uses outputs from steps 1-3)
    ↓ outputs: primary_bucket, secondary_bucket, rationale, confidence
-   Note: Bucket 3 (Sentiment/Positioning/Virality) covers both narrative-driven moves
+   ↓ outputs: past_30_60_driver_summary, today_driver, forward_30_60_driver_outlook
+   Note: Bucket 3 (Sentiment/Positioning/Virality) covers narrative-driven moves
    AND mechanical/positioning moves (index rebalances, short squeezes, gamma effects).
-   The rationale text must always specify which sub-type is driving the move.
+   The rationale must always specify which sub-type is driving the move.
+
 Step 5: Thesis Check (uses step 1-3 outputs + user thesis)
    ↓ outputs: thesis_status, thesis_analysis
+   ↓ outputs: past_30_60_validation_history, today_status, forward_30_60_thesis_outlook
+
 Step 6: Catalyst Scan (web search enabled)
-   ↓ outputs: events_near_term, events_mid_term, events_long_term
+   ↓ outputs: events categorized by Thesis/Macro/Sector/Sentiment/Fundamental
+   ↓ each event: name, date, bucket_tag, thesis_relevance, impact_hypothesis
+   ↓ includes macro and sector events relevant to this specific stock, not just company events
 
 Portfolio-level (runs once per scan, not per stock):
 Step 7: Regime Check (uses SPY data, VIX, sector performance)
-   ↓ outputs: regime, rationale
+   ↓ outputs: regime (risk_on/risk_off/rotation/dislocation), rationale
+
 Step 8: Anomaly Detection (uses per-stock returns vs. regime + sector)
-   ↓ outputs: anomaly_flags[]
+   ↓ outputs: anomaly_flags[] per stock
 ```
 
 ### 5.2 Caching Rules
@@ -290,51 +268,35 @@ Step 8: Anomaly Detection (uses per-stock returns vs. regime + sector)
 | News & Sentiment | 2-4 hours | Manual refresh, price spike (>2%) |
 | Fundamental Interpretation | 24 hours | New quarterly filing detected |
 | Sector-Relative Context | 24 hours | Same as fundamentals |
-| Bucket Assignment | Recalculated each scan | Always fresh (uses cached step inputs) |
-| Thesis Check | 24 hours | News & Sentiment cache invalidated |
+| Bucket Assignment | Recalculated each scan | Always fresh |
+| Thesis Check | 24 hours | News cache invalidated or thesis text changed |
 | Catalyst Scan | 12 hours | Manual refresh |
 | Regime Check | 2-4 hours | Market hours only |
 | Anomaly Detection | Recalculated each scan | Always fresh |
 
 ### 5.3 Prompt Design Principles
 
-Every prompt sent to Claude Sonnet follows these rules:
-
-1. **Structured output.** Every prompt ends with explicit JSON schema instructions. Claude returns parseable JSON, not prose. The dashboard never shows raw AI text on the surface view (prose is in the expandable deep dive only).
-
-2. **Context injection.** FMP data is injected directly into the prompt as structured data, not described narratively. Example: "Here is the financial data for NVDA: {revenue_ttm: 130.5B, revenue_growth_yoy: 0.94, operating_margin: 0.62, ...}. Analyze this data and return..."
-
-3. **Role specificity.** Each prompt has a focused role. The news scanner doesn't analyze fundamentals. The bucket assigner doesn't search the web. Separation of concerns.
-
-4. **Plain language output.** Per the design principles, AI-generated text should read like a smart friend explaining over coffee. No jargon unless the user is in the deep dive. Prompts explicitly instruct: "Write for someone who is interested in investing but may not work in finance."
+1. **Structured output.** Every prompt returns parseable JSON. The dashboard renders structured data, not raw AI prose.
+2. **Context injection.** FMP data injected as structured data, not described narratively.
+3. **Role specificity.** Each prompt has a focused role. Separation of concerns.
+4. **Plain language output.** AI text reads like a smart friend explaining over coffee. No jargon on surface views.
+5. **Time-horizon awareness.** Driver analysis, thesis checks, and sector-relative context all use the past/today/forward structure.
+6. **Thesis-aware catalysts.** Catalyst scan must evaluate each event for thesis relevance and flag accordingly.
 
 ### 5.4 Estimated API Cost Per Scan
 
-Per stock (6 steps):
-- Steps with web search (1, 6): ~$0.015 each = $0.03
-- Steps without web search (2, 3, 4, 5): ~$0.005 each = $0.02
-- Total per stock: ~$0.05
-
+Per stock (6 steps): ~$0.05
 Portfolio-level (steps 7, 8): ~$0.02
-
 Full scan of 10 stocks: ~$0.52
 Delta check (only steps 1, 4, 7, 8): ~$0.20
-
-Daily usage (1 full scan + 3 delta checks): ~$1.12
-Monthly: ~$34
-
-With aggressive caching (skip unchanged fundamentals, skip sentiment if no new headlines): realistically $10-20/month.
+Monthly with caching: ~$10-20
 
 ---
 
 ## 6. Key Calculations (Non-AI)
 
-These are computed locally, no API calls needed.
-
 ### 6.1 Portfolio Beta
-
 ```typescript
-// Weighted average beta
 function portfolioBeta(holdings: { beta: number; marketValue: number }[]): number {
   const totalValue = holdings.reduce((sum, h) => sum + h.marketValue, 0);
   return holdings.reduce((sum, h) => sum + (h.beta * h.marketValue / totalValue), 0);
@@ -342,9 +304,7 @@ function portfolioBeta(holdings: { beta: number; marketValue: number }[]): numbe
 ```
 
 ### 6.2 Correlation Matrix
-
 ```typescript
-// Pearson correlation between two return series
 function correlation(returnsA: number[], returnsB: number[]): number {
   const n = returnsA.length;
   const meanA = returnsA.reduce((s, v) => s + v, 0) / n;
@@ -359,127 +319,103 @@ function correlation(returnsA: number[], returnsB: number[]): number {
   }
   return cov / Math.sqrt(varA * varB);
 }
-
-// Daily returns from price history
-function dailyReturns(prices: number[]): number[] {
-  return prices.slice(1).map((p, i) => (p - prices[i]) / prices[i]);
-}
 ```
 
 ### 6.3 Anomaly Detection
-
 ```typescript
-// Flag if stock's daily return diverges from expected (beta-adjusted market return)
 function detectAnomaly(
   stockReturn: number,
   marketReturn: number,
   stockBeta: number,
-  threshold: number = 0.02  // 2% divergence
+  threshold: number = 0.02
 ): { isAnomaly: boolean; divergence: number } {
   const expectedReturn = stockBeta * marketReturn;
   const divergence = stockReturn - expectedReturn;
-  return {
-    isAnomaly: Math.abs(divergence) > threshold,
-    divergence,
-  };
+  return { isAnomaly: Math.abs(divergence) > threshold, divergence };
 }
 ```
 
 ---
 
-## 7. Build Sequence (Sprint Plan)
+## 7. Revised Sprint Plan
 
-Each sprint is a discrete, reviewable unit. Feed one sprint at a time to Claude Code. Review output before proceeding to the next.
+### Completed Sprints
 
-### Sprint 0: Project Scaffolding
-**Goal:** Empty project that runs.
-- Initialize Next.js 14+ with App Router, TypeScript, Tailwind
-- Set up Drizzle with SQLite
-- Create database schema and run initial migration
-- Create .env.local.example with FMP_API_KEY and CLAUDE_API_KEY placeholders
-- Create basic layout with navigation shell
-- README with setup instructions
-**Acceptance:** `npm run dev` shows a blank dashboard page with nav. Database file created.
+**Sprint 0: Project Scaffolding** — DONE
+Next.js App Router, TypeScript, Tailwind, Drizzle + SQLite, basic layout.
 
-### Sprint 1: Holdings Management + FMP Integration
-**Goal:** User can add tickers and see basic company data.
-- Build ticker input form (text field, add button)
-- Build CSV upload parser (extract tickers and optional share counts)
-- Integrate FMP company profile endpoint (auto-populate sector, industry, beta, company name)
-- Build holdings list component on dashboard
-- Build settings page for API key input (stored in .env.local, not in DB)
-- Sector ETF mapping lookup
-**Acceptance:** User adds NVDA, sees company name, sector (Technology), industry (Semiconductors), beta, and mapped sector ETF (XLK/SOXX).
+**Sprint 1: Holdings Management + FMP Integration + Layout** — DONE
+Ticker input, CSV upload, FMP company profiles, sector ETF mapping, react-grid-layout panel system, draggable/resizable panels on both pages, column visibility and reorder toggles, dark theme, holdings editing (shares, cost basis).
 
-### Sprint 2: Fundamental Data Layer
-**Goal:** Full financial data pulled and cached for each holding.
-- Integrate FMP financial statement endpoints (income, balance sheet, cash flow)
-- Integrate FMP key metrics and ratios endpoints
-- Build cache layer (store in SQLite, check freshness before re-fetching)
-- Build the "5 Numbers That Matter" display component (surface view)
-- Build expandable full financials component (deep dive)
-- Build per-company metric trend charts (revenue, margins, FCF, EPS over time)
-**Acceptance:** Click into NVDA, see 5-metric summary in plain language plus expandable full financials with trend charts.
+**Sprint 2: Fundamental Data Layer** — DONE
+FMP financial statement integration (income, balance sheet, cash flow, key metrics), Metrics That Matter cards with sparklines, Fundamentals panel with quarterly data, Revenue Flow Sankey with real data, peer comparison table, FMP caching layer with rate limit handling.
 
-### Sprint 3: Sector-Relative Analysis
-**Goal:** Each stock shows valuation and performance relative to its sector.
-- Pull sector ETF price history from FMP
-- Calculate sector-relative valuation (stock multiples vs. sector median)
-- Calculate sector-relative price correlation (rolling 30/90 day)
-- Build relative performance chart component (stock vs. sector ETF vs. SPY, normalized)
-- Build sector-relative valuation display (percentile rank, premium/discount trend)
-**Acceptance:** NVDA company page shows forward P/E vs. semiconductor sector median, correlation to SOXX, and normalized performance overlay chart.
+### Remaining Sprints
+
+### Sprint 3: Sector-Relative Analysis + Correlation
+**Goal:** Complete the quantitative analysis layer with real calculated data.
+- Pull historical daily prices for all holdings, their sector ETFs, and SPY from FMP
+- Calculate rolling 30-day and 90-day correlation coefficients between all holdings (for the correlation heatmap)
+- Calculate rolling correlation between each stock and its sector ETF
+- Build the correlation heatmap visualization with real data (portfolio dashboard)
+- Populate the Sector Relative panel "Past 30-60 days" section with a real normalized performance chart (stock vs. sector ETF vs. SPY)
+- Calculate sector-relative valuation percentiles (stock's P/E vs. sector median, etc.)
+- Populate SPY daily change in the portfolio dashboard top bar
+- Calculate portfolio daily P&L for holdings with cost basis entered
+**Acceptance:** Correlation heatmap shows real correlations. Sector Relative panel shows real relative performance chart. SPY change appears in the top bar.
 
 ### Sprint 4: Claude AI Analysis Pipeline
-**Goal:** Core intelligence layer operational.
-- Build Claude API client wrapper (handles auth, retries, rate limits)
-- Implement prompt templates for all 6 per-stock steps
-- Implement pipeline orchestrator (runs steps in sequence, passes outputs forward)
-- Implement structured JSON parsing for all step outputs
-- Store analysis results in analysis_scans table
-- Build scan trigger API route (full scan and delta scan)
-- Build "Refresh" button on dashboard that triggers scan
-**Acceptance:** Hit refresh, wait 2-3 minutes, each stock shows bucket assignment with rationale, news summary, sentiment assessment, and catalyst list.
+**Goal:** The core intelligence layer. This is where Portfolio Monitor becomes a product, not just a data display.
+- Build Claude API client wrapper (auth, retries, rate limits, structured JSON parsing)
+- Implement all 8 prompt templates (6 per-stock steps + 2 portfolio-level)
+- Implement pipeline orchestrator that runs steps in sequence, passes outputs forward
+- Wire pipeline outputs to every panel that currently shows placeholders:
+  - Driver Analysis panel: past/today/forward bucket assignments with rationales
+  - Thesis panel: past/today/forward thesis validation with evidence
+  - Sentiment panel: per-source sentiment scores and AI synthesis
+  - Upcoming Catalysts: real events categorized by Thesis/Macro/Sector/Sentiment/Fundamental with thesis relevance flags
+  - Metrics That Matter: forward outlook text for each of the 5 cards
+  - Sector Relative: forward relative outlook text
+  - Regime indicator on portfolio dashboard
+  - Anomaly flags per stock on portfolio dashboard
+  - Bucket distribution chart with AI summary on portfolio dashboard
+  - Thesis Tracker scorecard on portfolio dashboard
+  - Portfolio-level upcoming catalysts
+- Build scan trigger: "Run Full Scan" button triggers the full pipeline for all holdings
+- Build per-stock refresh: "Refresh" button on company page runs pipeline for that stock only
+- Store all results in analysis_scans table with timestamps
+**Acceptance:** Hit "Run Full Scan", wait 3-5 minutes, every placeholder on both the portfolio dashboard and company detail pages is populated with real AI-generated intelligence. Each stock has a bucket assignment, thesis check, sentiment summary, and catalyst list. The portfolio dashboard shows the regime, anomaly flags, and thesis scorecard.
 
-### Sprint 5: Thesis Tracking
-**Goal:** Users can set a thesis and see AI confirmation/challenge.
-- Add thesis text field to holdings (editable per stock)
-- Implement thesis check prompt (Step 5 in pipeline)
-- Build thesis tracker component (shows thesis text, status badge: confirmed/challenged/neutral, AI explanation)
-- Thesis status appears on both company detail page and as a badge on the portfolio holdings list
-**Acceptance:** User writes "Long AMZN: AWS margin expansion + advertising growth" as thesis. After scan, sees "Thesis under pressure: three analyst reports this week flag AWS margin compression from AI CapEx."
-
-### Sprint 6: Portfolio Dashboard
-**Goal:** Full portfolio-level intelligence view.
-- Implement regime check prompt (Step 7)
-- Build regime indicator component (top of dashboard)
-- Implement anomaly detection (Step 8 + local calculation)
-- Build anomaly flags component (prominent, top of dashboard below regime)
-- Build correlation heatmap (local calculation + Recharts)
-- Build portfolio beta display (per-stock beta + weighted portfolio beta)
-- Build bucket distribution summary
-- Build cross-portfolio catalyst calendar (aggregate events from all holdings)
-**Acceptance:** Dashboard shows regime (e.g., "Risk-on"), anomaly flags (e.g., "NVDA decoupled from sector"), correlation heatmap, portfolio beta of 1.35, bucket distribution, and merged catalyst calendar for next 30 days.
-
-### Sprint 7: Caching, History, and Polish
+### Sprint 5: Caching, History, and Delta Scans
 **Goal:** Production-quality refresh behavior and historical tracking.
-- Implement cache invalidation logic per pipeline step
-- Implement delta scan (only re-run steps whose cache has expired)
-- Implement historical scan storage (all past scans queryable by date)
-- Build historical timeline on company detail page ("What was driving this stock 2 weeks ago?")
-- Loading states and error handling across all components
-- Mobile-aware responsive checks (don't break, but don't optimize)
-- Polish UI: consistent spacing, typography, color coding for buckets, clean expand/collapse animations
-**Acceptance:** Second scan of the day completes in under 60 seconds (delta). User can browse historical scans. Everything looks clean and professional.
+- Implement per-step cache invalidation logic (different TTLs per pipeline step)
+- Implement delta scan: only re-run steps whose cache has expired (news every 2-4h, fundamentals every 24h, catalysts every 12h)
+- Implement historical scan storage: all past scan results queryable by date
+- Build historical timeline on company detail page showing past driver/thesis changes
+- Time-range filtering on dashboard: "today" vs. "this week" vs. "since last scan"
+- Loading states and progress indicators during scans (show which stock is being analyzed)
+- Error handling: graceful fallbacks when Claude API or FMP calls fail
+**Acceptance:** Second scan of the day completes in under 60 seconds (delta). User can browse historical scans. Loading states show progress.
 
-### Sprint 8: Documentation and Open Source Prep
+### Sprint 6: Polish and Edge Cases
+**Goal:** Everything works smoothly, looks professional, handles edge cases.
+- Fix any remaining data issues for tickers with limited FMP coverage (GLXY, NBIS, Q)
+- Ensure all panels auto-size to content height by default
+- Responsive checks: nothing breaks on smaller desktop screens or tablets
+- Consistent typography and spacing pass across all pages
+- Bucket color coding consistency across all components (same colors for Market Beta, Sector, Sentiment, Fundamental everywhere)
+- Test with portfolios of different sizes (1 stock, 5 stocks, 15 stocks) to ensure layouts hold
+- Performance: ensure page loads stay under 3 seconds with cached data
+**Acceptance:** Everything looks clean and professional. No visual bugs. Edge cases handled gracefully.
+
+### Sprint 7: Documentation and Open Source Prep
 **Goal:** Ready for other users.
-- Comprehensive README: what it is, setup instructions (Node.js, API keys, first scan), screenshots
+- Comprehensive README: what it is, screenshots, setup instructions (Node.js, FMP key, Claude API key, first scan)
 - .env.local.example with clear comments
-- Architecture overview in docs/ folder
-- Contribution guide (how to add features, how prompts work, how to add sector ETF mappings)
+- Architecture overview in docs/ folder explaining the panel system, prompt pipeline, and data flow
+- Contribution guide (how to add features, how prompts work, how to add panels)
 - License file (MIT or Apache 2.0, TBD)
-- Clean up any hardcoded values, ensure all thresholds are configurable in constants.ts
+- Clean up any hardcoded values, ensure all thresholds are configurable
 **Acceptance:** A new developer can clone the repo, follow the README, and have a working dashboard within 15 minutes.
 
 ---
@@ -499,11 +435,11 @@ CLAUDE_API_KEY=your_claude_api_key_here
 CLAUDE_MODEL=claude-sonnet-4-20250514
 
 # Analysis settings
-SCAN_ANOMALY_THRESHOLD=0.02        # 2% divergence from expected return triggers flag
-SCAN_PRICE_SPIKE_THRESHOLD=0.02    # 2% intraday move triggers delta re-scan
-CACHE_NEWS_HOURS=4                 # Hours before news/sentiment cache expires
-CACHE_FUNDAMENTALS_HOURS=24        # Hours before fundamental data cache expires
-CACHE_CATALYSTS_HOURS=12           # Hours before catalyst scan cache expires
+SCAN_ANOMALY_THRESHOLD=0.02
+SCAN_PRICE_SPIKE_THRESHOLD=0.02
+CACHE_NEWS_HOURS=4
+CACHE_FUNDAMENTALS_HOURS=24
+CACHE_CATALYSTS_HOURS=12
 ```
 
 ---
@@ -512,11 +448,13 @@ CACHE_CATALYSTS_HOURS=12           # Hours before catalyst scan cache expires
 
 1. **Prompt development:** Use Claude Code (or Claude chat) to prototype and refine each prompt template. Test with real tickers. Iterate until the structured JSON output is reliable and the plain-language summaries read well.
 
-2. **Sprint execution:** Feed one sprint description to Claude Code at a time. Include the project structure, relevant schema sections, and any prior sprint output as context.
+2. **Sprint execution:** Feed one sprint description to Claude Code at a time. Start each new Claude Code session with: "This is the Portfolio Monitor project. Read portfolio-monitor-product-spec.md and portfolio-monitor-technical-plan.md for full context."
 
-3. **Review cycle:** After each sprint, review the output. Run the app. Check that acceptance criteria are met. Note any issues or adjustments before proceeding.
+3. **Review cycle:** After each sprint, review the output. Run the app. Check acceptance criteria. Note issues before proceeding.
 
-4. **Testing:** For V1, manual testing is sufficient. Automated tests can be added in V2. The priority is getting the product working and usable, not test coverage.
+4. **FMP rate management:** Paid plan provides high limits but still be mindful during heavy development. Cache aggressively. Don't clear the cache unnecessarily.
+
+5. **Testing:** Manual testing for V1. Automated tests in V2.
 
 ---
 
@@ -524,24 +462,26 @@ CACHE_CATALYSTS_HOURS=12           # Hours before catalyst scan cache expires
 
 | Risk | Mitigation |
 |---|---|
-| FMP free tier rate limits too restrictive for development | Upgrade to $14/month Starter during active development. Document in README. |
-| Claude API returns inconsistent JSON structure | Strict JSON schema instructions in every prompt. Validation layer that retries on parse failure (max 2 retries). |
-| Sector ETF mapping misses edge cases | Manual override field in holdings table. User can reassign sector ETF for any stock. |
-| SQLite concurrent write issues during background scan | Scans run sequentially, not in parallel. WAL mode enabled for better read concurrency. |
-| Prompt quality degrades for less-covered stocks | Test pipeline against small-cap and international ADRs during Sprint 4. Adjust prompts if needed. |
-| Historical price data gaps for newer stocks | Graceful fallback: skip correlation/beta for stocks with <90 days of price history. Display "Insufficient data" badge. |
+| FMP rate limits during heavy development | Paid plan ($29/month). Cache layer prevents redundant calls. Don't clear cache unless necessary. |
+| FMP doesn't cover certain tickers (GLXY, NBIS, Q) | Graceful "Data unavailable" fallback. Investigate alternate symbols or supplementary data sources. |
+| Claude API returns inconsistent JSON | Strict JSON schema in prompts. Validation + retry layer (max 2 retries). |
+| Sector ETF mapping misses edge cases | Manual override field in holdings table. |
+| SQLite concurrent writes during scans | Sequential scan execution. WAL mode for read concurrency. |
+| Prompt quality varies by stock coverage | Test across large-cap, mid-cap, and international ADRs in Sprint 4. |
+| react-grid-layout performance with many panels | Monitor render performance. Panels are relatively few (7-8 max) so this should not be an issue. |
 
 ---
 
 ## 11. Post-V1 Technical Considerations
 
-These are explicitly out of scope for V1 but worth noting for architectural awareness:
-
-- **Plaid integration (V2):** Will require a server-side auth flow. The SQLite schema should be extensible to store Plaid access tokens and linked account metadata. Do not design V1 schema in a way that precludes this.
-- **PostgreSQL migration (V2):** Drizzle supports both SQLite and PostgreSQL. Schema should use Drizzle's abstraction layer so migration is a config change, not a rewrite.
-- **Comparative charting (V2):** The price_history and fundamentals tables already store the data needed. V2 adds the UI for selecting stocks and metrics to compare.
-- **Chat interface (V3):** Will require a conversation history table and streaming Claude API responses. The pipeline architecture means the chat agent can invoke individual analysis steps on demand.
-- **Background scheduled scans (V2/V3):** Will require a job queue (e.g., node-cron or BullMQ). The scan trigger API route built in Sprint 4 serves as the foundation.
+- **Plaid integration (V2):** Server-side auth flow. Schema extensible for access tokens and linked accounts.
+- **PostgreSQL migration (V2):** Drizzle abstracts the DB layer. Migration is a config change.
+- **Comparative charting (V2):** Data already in price_history and fundamentals tables. V2 adds selection UI.
+- **Chat interface (V3):** Conversation history table + streaming Claude API. Pipeline steps invokable on demand.
+- **Background scheduled scans (V2/V3):** Job queue (node-cron or BullMQ). Scan trigger API route is the foundation.
+- **Multi-agent debate (V3):** Bull vs. bear agents arguing each position. Uses same pipeline data as input.
+- **Tax awareness (V3):** Tax-loss harvesting flags, wash sale prevention, cost basis tracking.
+- **Mobile-optimized view (V3):** Focused on most-used features identified from desktop usage data.
 
 ---
 

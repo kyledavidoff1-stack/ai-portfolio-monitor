@@ -2,15 +2,13 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
-    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
-    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
         // Bucket colors
-        bucket1: '#6B7280', // Gray — market beta
+        bucket1: '#818CF8', // Indigo — market beta
         bucket2: '#3B82F6', // Blue — sector/factor rotation
         bucket3: '#F59E0B', // Amber — sentiment/positioning
         bucket4: '#10B981', // Green — fundamental change

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // User's holdings
 export const holdings = sqliteTable('holdings', {
@@ -10,6 +10,7 @@ export const holdings = sqliteTable('holdings', {
   sector: text('sector'),                    // From FMP, auto-populated
   industry: text('industry'),               // From FMP, auto-populated
   sectorEtf: text('sector_etf'),            // Mapped from sector
+  beta: real('beta'),                        // From FMP profile, auto-populated
   thesis: text('thesis'),                    // User-defined investment thesis
   addedAt: text('added_at').notNull(),       // ISO timestamp
   updatedAt: text('updated_at').notNull(),
@@ -18,7 +19,7 @@ export const holdings = sqliteTable('holdings', {
 // Cached FMP fundamental data per company
 export const fundamentals = sqliteTable('fundamentals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  ticker: text('ticker').notNull(),
+  ticker: text('ticker').notNull().unique(),  // Unique so upserts work
   data: text('data').notNull(),              // JSON blob: revenue, margins, FCF, EPS, etc.
   fetchedAt: text('fetched_at').notNull(),   // For cache invalidation
 });
@@ -30,7 +31,9 @@ export const priceHistory = sqliteTable('price_history', {
   date: text('date').notNull(),
   close: real('close').notNull(),
   volume: integer('volume'),
-});
+}, (table) => ({
+  tickerDateIdx: uniqueIndex('price_history_ticker_date_idx').on(table.ticker, table.date),
+}));
 
 // AI analysis results (the core intelligence)
 export const analysisScans = sqliteTable('analysis_scans', {
@@ -47,6 +50,7 @@ export const analysisScans = sqliteTable('analysis_scans', {
   catalysts: text('catalysts'),              // JSON: array of upcoming events with impact
   fiveMetrics: text('five_metrics'),         // JSON: the "5 Numbers That Matter" AI summary
   sectorRelative: text('sector_relative'),   // JSON: valuation vs sector, premium/discount
+  driverAnalysis: text('driver_analysis'),   // JSON: past/today/forward driver assessment
   fullAnalysis: text('full_analysis'),       // JSON: complete AI output for deep dive
   scannedAt: text('scanned_at').notNull(),
 });

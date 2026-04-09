@@ -1,11 +1,20 @@
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 
 export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">Configure your API keys and preferences</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-100">Settings</h1>
+          <p className="text-gray-500 text-sm mt-1">Configure your API keys and preferences</p>
+        </div>
+        <Link
+          href="/settings/prompt-test"
+          className="px-3 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 rounded-md transition-colors"
+        >
+          Prompt Lab
+        </Link>
       </div>
 
       {/* API Keys */}

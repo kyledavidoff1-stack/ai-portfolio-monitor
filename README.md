@@ -1,4 +1,4 @@
-# Sentinel — Portfolio Intelligence Platform
+# Portfolio Monitor — Portfolio Intelligence Platform
 
 A personal portfolio intelligence platform that answers two questions for every stock you hold:
 1. **Why is this moving right now?** (categorized into four driver buckets)
@@ -10,7 +10,7 @@ Powered by Claude AI + Financial Modeling Prep. Local-first. Open source.
 
 ## What It Does
 
-Sentinel combines deep company-level intelligence with portfolio-level analytics:
+Portfolio Monitor combines deep company-level intelligence with portfolio-level analytics:
 
 - **Four-Bucket Driver Analysis** — every signal gets classified as Market Beta, Sector Rotation, Sentiment/Positioning, or Fundamental Change
 - **AI Intelligence Reports** — plain-language summaries of what's happening and why, not just raw numbers
@@ -75,7 +75,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Architecture
 
 ```
-Sentinel
+Portfolio Monitor
 ├── Next.js App Router (frontend + API routes)
 ├── SQLite via Drizzle ORM (local data store)
 ├── Financial Modeling Prep API (structured financial data)

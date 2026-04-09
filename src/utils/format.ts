@@ -40,6 +40,21 @@ export function formatRelativeTime(isoString: string): string {
   return `${diffDays}d ago`;
 }
 
+/** Compact dollar formatter: $638B, $1.2T, $450M, handles negatives with sign */
+export function fmtB(n: number): string {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(1)}T`;
+  if (abs >= 1e9)  return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6)  return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  return `${sign}$${Math.round(abs).toLocaleString()}`;
+}
+
+/** Format a decimal ratio as a percentage string, e.g. 0.107 → "10.7%" */
+export function pctAbs(n: number, decimals = 1): string {
+  return `${(n * 100).toFixed(decimals)}%`;
+}
+
 export function trendArrow(trend: 'up' | 'down' | 'flat'): string {
   if (trend === 'up') return '↑';
   if (trend === 'down') return '↓';

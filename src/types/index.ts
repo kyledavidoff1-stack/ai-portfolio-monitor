@@ -17,17 +17,25 @@ export interface Holding {
   sector: string | null;
   industry: string | null;
   sectorEtf: string | null;
+  beta: number | null;
   thesis: string | null;
   addedAt: string;
   updatedAt: string;
 }
 
+export interface FiveMetricEntry {
+  value: string;
+  context: string;
+  trend: 'up' | 'down' | 'flat';
+  forwardOutlook?: string;
+}
+
 export interface FiveMetrics {
-  revenue: { value: string; context: string; trend: 'up' | 'down' | 'flat' };
-  profitability: { value: string; context: string; trend: 'up' | 'down' | 'flat' };
-  cashGeneration: { value: string; context: string; trend: 'up' | 'down' | 'flat' };
-  valuation: { value: string; context: string; trend: 'up' | 'down' | 'flat' };
-  financialHealth: { value: string; context: string; trend: 'up' | 'down' | 'flat' };
+  revenue: FiveMetricEntry;
+  profitability: FiveMetricEntry;
+  cashGeneration: FiveMetricEntry;
+  valuation: FiveMetricEntry;
+  financialHealth: FiveMetricEntry;
 }
 
 export interface NewsSentiment {
@@ -36,7 +44,13 @@ export interface NewsSentiment {
   score: number; // -1 to 1
   keyHeadlines: string[];
   socialBuzz: string;
+  twitterScore: number | null;   // -1 to 1
+  redditScore: number | null;
+  mediaScore: number | null;
+  analystScore: number | null;
 }
+
+export type CatalystCategory = 'thesis' | 'macro' | 'sector' | 'sentiment' | 'fundamental';
 
 export interface Catalyst {
   date: string;
@@ -44,6 +58,21 @@ export interface Catalyst {
   description: string;
   impactHypothesis: string;
   horizon: 'near' | 'mid' | 'long';
+  category: CatalystCategory;
+  thesisRelevance: boolean;
+}
+
+export interface DriverAnalysis {
+  past: { summary: string; dominantBucket: Bucket; evolution: string };
+  today: { primaryBucket: Bucket; secondaryBucket: Bucket | null; rationale: string; confidence: BucketConfidence };
+  forward: { summary: string; expectedBucket: Bucket; keyFactors: string[] };
+}
+
+export interface ThesisCheck {
+  status: ThesisStatus;
+  past: { summary: string; evidence: string[] };
+  today: { explanation: string };
+  forward: { outlook: string; keyEvents: string[] };
 }
 
 export interface AnalysisScan {
@@ -60,6 +89,7 @@ export interface AnalysisScan {
   catalysts: Catalyst[] | null;
   fiveMetrics: FiveMetrics | null;
   sectorRelative: SectorRelativeData | null;
+  driverAnalysis: DriverAnalysis | null;
   fullAnalysis: Record<string, unknown> | null;
   scannedAt: string;
 }
@@ -70,6 +100,7 @@ export interface SectorRelativeData {
   correlationToSector30d: number;
   correlationToSector90d: number;
   relativePerformance: { period: string; stockReturn: number; sectorReturn: number; spyReturn: number }[];
+  forwardOutlook: string;
 }
 
 export interface RegimeSnapshot {
@@ -89,6 +120,22 @@ export interface AnomalyFlag {
   severity: Severity;
   resolved: number;
   flaggedAt: string;
+}
+
+export interface PeerRow {
+  ticker: string;
+  revGrowthYoY: number | null;    // Decimal, e.g. 0.13 = +13% YoY
+  opMargin: number | null;         // Decimal, e.g. 0.10 = 10%
+  fcfMargin: number | null;        // Decimal, e.g. 0.15 = 15% FCF margin (TTM FCF / TTM Rev)
+  peRatio: number | null;
+  forwardPeRatio: number | null;   // Forward P/E from analyst estimates (price / NTM EPS avg)
+  isSelf: boolean;                 // true = this is the company being viewed
+}
+
+export interface RevenueSegment {
+  name: string;
+  value: number;               // Dollar amount (most recent fiscal year)
+  yoyGrowth: number | null;    // Decimal, e.g. 0.17 = +17%
 }
 
 export interface PortfolioSummary {
