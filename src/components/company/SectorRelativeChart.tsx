@@ -117,7 +117,7 @@ export function SectorRelativeChart({ data, intradayData, ticker, sectorEtf }: P
               key={r.label}
               onClick={() => setRange(r.label)}
               disabled={!available}
-              className={`px-2 py-0.5 text-[11px] font-mono rounded transition-colors ${
+              className={`px-2 py-0.5 text-[12px] font-mono rounded transition-colors ${
                 range === r.label
                   ? 'bg-gray-700 text-gray-200 font-semibold'
                   : available

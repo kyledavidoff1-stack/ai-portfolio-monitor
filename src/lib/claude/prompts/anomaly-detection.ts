@@ -10,7 +10,7 @@ function buildScanSummary(scan: AnalysisScan): string {
   if (scan.bucketPrimary) parts.push(`bucket=${scan.bucketPrimary}`);
   if (scan.bucketConfidence) parts.push(`confidence=${scan.bucketConfidence}`);
   if (scan.thesisStatus) parts.push(`thesis=${scan.thesisStatus}`);
-  if (scan.newsSentiment) parts.push(`sentiment=${scan.newsSentiment.sentiment}(${scan.newsSentiment.score.toFixed(2)})`);
+  if (scan.newsSentiment) parts.push(`sentiment=${scan.newsSentiment.overall_tone ?? scan.newsSentiment.sentiment}(${scan.newsSentiment.score.toFixed(2)})`);
   return parts.join(' ');
 }
 

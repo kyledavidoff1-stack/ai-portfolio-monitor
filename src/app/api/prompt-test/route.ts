@@ -119,12 +119,19 @@ async function buildPrompt(step: Step, ticker: string): Promise<{
     case 'fundamentals': {
       const blob = await getFundamentals(tickerUp);
       deps.fundamentalsCache = blob.cachedAt;
+      const quotes = await fetchQuotes([tickerUp]).catch(() => ({} as Record<string, { price: number }>));
+      const livePrice = quotes[tickerUp]?.price ?? null;
+      const forwardEps = blob.analystEstimates[0]?.epsAvg ?? null;
+      if (livePrice) deps.livePrice = String(livePrice);
+      if (forwardEps) deps.forwardEps = String(forwardEps);
       const prompt = buildFundamentalAnalysisPrompt({
         ticker: tickerUp,
         income: blob.income,
         cashFlow: blob.cashFlow,
         balanceSheet: blob.balanceSheet,
         keyMetrics: blob.keyMetrics,
+        livePrice,
+        forwardEps,
       });
       return { prompt, dependencies: deps };
     }

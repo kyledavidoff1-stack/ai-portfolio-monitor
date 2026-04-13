@@ -109,7 +109,7 @@ export default function DraggableDashboard({
                   : scanState.message || 'Starting scan...'}
               </span>
               {scanState.totalTickers > 0 && (
-                <span className="text-[11px] text-gray-500 font-mono shrink-0 ml-2">
+                <span className="text-[12px] text-gray-500 font-mono shrink-0 ml-2">
                   {scanState.completedTickers.size} of {scanState.totalTickers}
                 </span>
               )}
@@ -152,7 +152,7 @@ export default function DraggableDashboard({
                 <PanelGripIcon />
               </div>
               <div className="flex-1 overflow-y-auto p-3 pt-2">
-                <HoldingsList holdings={holdings} quotes={quotes} scanState={scanState} latestScans={latestScans} />
+                <HoldingsList holdings={holdings} quotes={quotes} scanState={scanState} latestScans={latestScans} anomalies={anomalies} />
               </div>
             </div>
           </div>
@@ -166,7 +166,7 @@ export default function DraggableDashboard({
 
           {/* ── Portfolio Drivers ── */}
           <div key="drivers">
-            <DraggablePanel title="Portfolio Drivers">
+            <DraggablePanel title="Today's Portfolio Drivers">
               <PortfolioDriversContent latestScans={latestScans} />
             </DraggablePanel>
           </div>
@@ -309,7 +309,7 @@ function ThesisTrackerContent({
             href={`/company/${item.ticker}`}
             className="flex items-start gap-2 hover:bg-gray-800/50 rounded px-1 py-0.5 -mx-1 transition-colors"
           >
-            <span className="text-[11px] font-mono font-semibold text-gray-200 shrink-0 w-12 pt-px">
+            <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 w-12 pt-px">
               {item.ticker}
             </span>
             <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
@@ -318,7 +318,7 @@ function ThesisTrackerContent({
               item.status === 'neutral' ? 'bg-amber-500' :
               'bg-gray-600'
             }`} />
-            <span className="text-[11px] text-gray-400 leading-relaxed line-clamp-1 flex-1">{item.analysis}</span>
+            <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-1 flex-1">{item.analysis}</span>
           </Link>
         ))}
       </div>
@@ -327,6 +327,12 @@ function ThesisTrackerContent({
 }
 
 // ── PortfolioDriversContent ───────────────────────────────────────────────────
+
+function truncateWords(text: string, max: number): string {
+  const words = text.split(/\s+/);
+  if (words.length <= max) return text;
+  return words.slice(0, max).join(' ') + '…';
+}
 
 const BUCKET_BAR_COLORS: Record<number, string> = {
   1: 'bg-indigo-400',
@@ -385,7 +391,7 @@ function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, 
               <div className="flex-1 h-1.5 bg-gray-800 rounded-full">
                 <div className={`${BUCKET_BAR_COLORS[bucket]} h-full rounded-full transition-all`} style={{ width: `${Math.max(pct, 2)}%` }} />
               </div>
-              <span className="text-[11px] text-gray-500 w-8 text-right">{counts[bucket]}</span>
+              <span className="text-[12px] text-gray-500 w-8 text-right">{counts[bucket]}</span>
             </div>
           );
         })}
@@ -394,11 +400,11 @@ function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, 
         <div className="mt-3 space-y-2">
           {topDrivers.map((s) => (
             <div key={s.ticker} className="flex gap-2 items-start">
-              <span className="text-[11px] font-mono font-semibold text-gray-200 shrink-0 pt-px w-12">{s.ticker}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 shrink-0">
+              <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 pt-px w-12">{s.ticker}</span>
+              <span className="text-[12px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 shrink-0">
                 {BUCKET_LABELS[s.bucketPrimary!]}
               </span>
-              <span className="text-[11px] text-gray-400 leading-relaxed line-clamp-2">{s.bucketRationale}</span>
+              <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-2">{truncateWords(s.bucketRationale!, 15)}</span>
             </div>
           ))}
         </div>
@@ -454,11 +460,11 @@ function PortfolioCatalystsContent({ latestScans }: { latestScans: Record<string
         const daysUntil = Math.ceil((new Date(c.date).getTime() - Date.now()) / 86400000);
         return (
           <div key={`${c.ticker}-${i}`} className="flex items-start gap-2">
-            <span className="text-[11px] font-mono text-gray-500 w-14 shrink-0">{c.date.slice(5)}</span>
+            <span className="text-[12px] font-mono text-gray-500 w-14 shrink-0">{c.date.slice(5)}</span>
             <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${CATEGORY_COLORS[c.category] ?? 'bg-gray-500'}`} />
-            <span className="text-[11px] font-mono font-semibold text-gray-200 w-12 shrink-0">{c.ticker}</span>
-            <span className="text-[11px] text-gray-400 leading-relaxed flex-1 line-clamp-1">{c.description}</span>
-            <span className="text-[10px] text-gray-600 shrink-0">{daysUntil}d</span>
+            <span className="text-[12px] font-mono font-semibold text-gray-200 w-12 shrink-0">{c.ticker}</span>
+            <span className="text-[12px] text-gray-400 leading-relaxed flex-1 line-clamp-1">{c.description}</span>
+            <span className="text-[12px] text-gray-600 shrink-0">{daysUntil}d</span>
           </div>
         );
       })}

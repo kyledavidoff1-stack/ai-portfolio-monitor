@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Holding, AnalysisScan, ThesisStatus } from '@/types';
+import { Holding, AnalysisScan, ThesisStatus, AnomalyFlag } from '@/types';
 import { QuoteData } from '@/lib/fmp/quotes';
 import type { ScanState } from './ScanButton';
 import { AddTickerModal } from './AddTickerModal';
@@ -14,10 +14,11 @@ type ColumnKey =
   | 'company' | 'price' | 'buckets' | 'change'
   | 'thesis' | 'nextCatalyst' | 'beta' | 'driver'
   | 'shares' | 'marketValue' | 'costBasis' | 'pnl'
-  | 'sector' | 'industry' | 'sectorEtf' | 'mktCap';
+  | 'sector' | 'industry' | 'sectorEtf' | 'mktCap'
+  | 'anomalyFlag';
 
-// Orderable keys: 'ticker' always first; 'driver' has no header; 'price' merged into 'company' cell
-type OrderableKey = Exclude<ColumnKey, 'driver' | 'price'>;
+// Orderable keys: 'ticker' always first; 'driver' has no header; 'price' merged into 'company' cell; 'anomalyFlag' is fixed position
+type OrderableKey = Exclude<ColumnKey, 'driver' | 'price' | 'anomalyFlag'>;
 
 interface ColDef { key: ColumnKey; label: string; defaultOn: boolean; group: 'default' | 'optional' }
 
@@ -29,6 +30,7 @@ const COL_DEFS: ColDef[] = [
   { key: 'beta',         label: 'Beta',           defaultOn: true,  group: 'default'  },
   { key: 'buckets',      label: 'Driver Buckets', defaultOn: true,  group: 'default'  },
   { key: 'thesis',       label: 'Thesis Status',  defaultOn: true,  group: 'default'  },
+  { key: 'anomalyFlag',  label: 'Anomaly Flag',   defaultOn: true,  group: 'default'  },
   { key: 'nextCatalyst', label: 'Next Catalyst',  defaultOn: false, group: 'optional' },
   { key: 'driver',       label: 'Driver Summary', defaultOn: true,  group: 'default'  },
   { key: 'mktCap',       label: 'Market Cap',     defaultOn: false, group: 'optional' },
@@ -41,8 +43,8 @@ const COL_DEFS: ColDef[] = [
 ];
 
 const DEFAULT_COLS = new Set<ColumnKey>(COL_DEFS.filter((c) => c.defaultOn).map((c) => c.key));
-const STORAGE_KEY = 'pm:columns-v3';
-const ORDER_KEY   = 'pm:col-order-v3';
+const STORAGE_KEY = 'pm:columns-v4';
+const ORDER_KEY   = 'pm:col-order-v4';
 
 function loadCols(): Set<ColumnKey> {
   try {
@@ -94,6 +96,12 @@ const COL_META: Record<OrderableKey, { width: string; label: (cols: Set<ColumnKe
 
 const BUCKETS = ['Market Beta', 'Sector/Macro', 'Sentiment', 'Fundamental'];
 
+function truncateWords(text: string, max: number): string {
+  const words = text.split(/\s+/);
+  if (words.length <= max) return text;
+  return words.slice(0, max).join(' ') + '…';
+}
+
 const BUCKET_DOT_COLORS: Record<number, string> = {
   1: 'bg-indigo-400',
   2: 'bg-blue-500',
@@ -130,11 +138,13 @@ export function HoldingsList({
   quotes,
   scanState,
   latestScans = {},
+  anomalies = [],
 }: {
   holdings: Holding[];
   quotes: Record<string, QuoteData>;
   scanState?: ScanState | null;
   latestScans?: Record<string, AnalysisScan>;
+  anomalies?: AnomalyFlag[];
 }) {
   const router = useRouter();
   const [showModal, setShowModal]       = useState(false);
@@ -146,6 +156,14 @@ export function HoldingsList({
   const [dragOver, setDragOver]         = useState<OrderableKey | null>(null);
   const dragKey = useRef<OrderableKey | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Build per-ticker anomaly lookup
+  const anomalyByTicker = new Map<string, AnomalyFlag[]>();
+  for (const flag of anomalies) {
+    const arr = anomalyByTicker.get(flag.ticker) ?? [];
+    arr.push(flag);
+    anomalyByTicker.set(flag.ticker, arr);
+  }
 
   useEffect(() => {
     setCols(loadCols());
@@ -293,7 +311,7 @@ export function HoldingsList({
 
         <button
           onClick={() => setShowModal(true)}
-          className="text-[11px] text-gray-400 hover:text-gray-100 font-medium px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors"
+          className="text-[12px] text-gray-400 hover:text-gray-100 font-medium px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors"
         >
           + Add ticker
         </button>
@@ -338,6 +356,7 @@ export function HoldingsList({
               onEditSave={(data) => handleEditSave(h.ticker, data)}
               deleting={deletingTicker === h.ticker}
               scanState={scanState}
+              anomalyFlags={anomalyByTicker.get(h.ticker) ?? []}
             />
           ))}
         </div>
@@ -367,7 +386,7 @@ function ColHeader({
 }) {
   return (
     <div className="flex items-center px-3 pb-1.5 gap-3 select-none">
-      <div className="w-12 shrink-0 text-[11px] text-gray-500 uppercase tracking-widest font-medium">
+      <div className="w-12 shrink-0 text-[12px] text-gray-500 uppercase tracking-widest font-medium">
         Ticker
       </div>
 
@@ -408,7 +427,7 @@ function ColHeader({
             {isOver && (
               <span className="absolute -left-1.5 top-0 bottom-0 w-0.5 rounded-full bg-blue-500" />
             )}
-            <div className="flex items-center gap-1 text-[11px] text-gray-500 uppercase tracking-widest font-medium">
+            <div className="flex items-center gap-1 text-[12px] text-gray-500 uppercase tracking-widest font-medium">
               <GripIcon />
               <span>{label(cols)}</span>
             </div>
@@ -417,6 +436,14 @@ function ColHeader({
       })}
 
       <div className="flex-1" />
+      {/* Anomaly flag header */}
+      {cols.has('anomalyFlag') && (
+        <div className="w-16 shrink-0">
+          <div className="flex items-center gap-1 text-[12px] text-gray-500 uppercase tracking-widest font-medium">
+            ANOMALY
+          </div>
+        </div>
+      )}
       {/* Spacer for action buttons */}
       <div className="w-12 shrink-0" />
     </div>
@@ -441,6 +468,7 @@ function HoldingRow({
   onEditSave,
   deleting,
   scanState,
+  anomalyFlags = [],
 }: {
   holding: Holding;
   quote: QuoteData | null;
@@ -457,6 +485,7 @@ function HoldingRow({
   onEditSave: (data: { shares: number | null; costBasis: number | null }) => void;
   deleting: boolean;
   scanState?: ScanState | null;
+  anomalyFlags?: AnomalyFlag[];
 }) {
   const router = useRouter();
   const liveQuote = quote && !quote.unavailable ? quote : null;
@@ -522,7 +551,7 @@ function HoldingRow({
                 {activeBucket ? (
                   <>
                     <div className={`w-2 h-2 rounded-full shrink-0 ${BUCKET_DOT_COLORS[activeBucket]}`} />
-                    <span className="text-gray-300 text-[11px] truncate">{BUCKETS[activeBucket - 1]}</span>
+                    <span className="text-gray-300 text-[12px] truncate">{BUCKETS[activeBucket - 1]}</span>
                   </>
                 ) : (
                   <span className="text-gray-600 text-xs">—</span>
@@ -533,7 +562,7 @@ function HoldingRow({
 
           if (key === 'change') {
             return (
-              <div key="change" className={`${width} text-right shrink-0`}>
+              <div key="change" className={`${width} shrink-0`}>
                 {quote?.unavailable ? (
                   <UnavailableLabel />
                 ) : liveQuote ? (
@@ -568,8 +597,8 @@ function HoldingRow({
               <div key="nextCatalyst" className={`${width} shrink-0`}>
                 {nextCat ? (
                   <div className="min-w-0">
-                    <p className="text-[10px] text-gray-500 font-mono">{nextCat.date.slice(5)}</p>
-                    <p className="text-[10px] text-gray-400 truncate" title={nextCat.description}>{nextCat.description}</p>
+                    <p className="text-[12px] text-gray-500 font-mono">{nextCat.date.slice(5)}</p>
+                    <p className="text-[12px] text-gray-400 truncate" title={nextCat.description}>{nextCat.description}</p>
                   </div>
                 ) : (
                   <span className="text-gray-600 text-xs">—</span>
@@ -580,7 +609,7 @@ function HoldingRow({
 
           if (key === 'beta') {
             return (
-              <div key="beta" className={`${width} text-right shrink-0`}>
+              <div key="beta" className={`${width} shrink-0`}>
                 {h.beta != null ? (
                   <span className={`text-xs font-mono font-semibold ${h.beta > 1.5 ? 'text-amber-400' : h.beta < 0.7 ? 'text-blue-400' : 'text-gray-200'}`}>
                     {h.beta.toFixed(2)}
@@ -594,7 +623,7 @@ function HoldingRow({
 
           if (key === 'shares') {
             return (
-              <div key="shares" className={`${width} text-right shrink-0`}>
+              <div key="shares" className={`${width} shrink-0`}>
                 {h.shares != null ? (
                   <span className="text-gray-200 text-xs font-mono">{h.shares.toLocaleString()}</span>
                 ) : (
@@ -606,7 +635,7 @@ function HoldingRow({
 
           if (key === 'marketValue') {
             return (
-              <div key="marketValue" className={`${width} text-right shrink-0`}>
+              <div key="marketValue" className={`${width} shrink-0`}>
                 {mktVal != null ? (
                   <span className="text-gray-200 text-xs font-mono">{formatCurrency(mktVal)}</span>
                 ) : (
@@ -629,7 +658,7 @@ function HoldingRow({
 
           if (key === 'pnl') {
             return (
-              <div key="pnl" className={`${width} text-right shrink-0`}>
+              <div key="pnl" className={`${width} shrink-0`}>
                 {pnlPct != null ? (
                   <span className={`text-xs font-mono font-semibold ${pnlPct >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(1)}%
@@ -668,7 +697,7 @@ function HoldingRow({
           if (key === 'mktCap') {
             const cap = liveQuote?.marketCap;
             return (
-              <div key="mktCap" className={`${width} text-right shrink-0`}>
+              <div key="mktCap" className={`${width} shrink-0`}>
                 {cap != null && cap > 0 ? (
                   <span className="text-gray-200 text-xs font-mono">{formatCurrency(cap)}</span>
                 ) : (
@@ -681,11 +710,15 @@ function HoldingRow({
           return null;
         })}
 
-        {/* Spacer + anomaly dot */}
+        {/* Anomaly flag indicator */}
         <div className="flex-1" />
-        <div className="w-4 shrink-0 flex justify-end">
-          <div className="w-1.5 h-1.5 rounded-full bg-gray-800 border border-gray-700" title="No anomaly" />
-        </div>
+        {cols.has('anomalyFlag') && (
+          <div className="w-16 shrink-0 flex">
+            {anomalyFlags.length > 0 ? (
+              <AnomalyIndicator flags={anomalyFlags} />
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* Driver summary — second line */}
@@ -696,7 +729,7 @@ function HoldingRow({
         >
           <div className="w-12 shrink-0" />
           {scan?.bucketRationale ? (
-            <p className="text-gray-400 text-xs truncate flex-1">{scan.bucketRationale}</p>
+            <p className="text-gray-400 text-xs truncate flex-1">{truncateWords(scan.bucketRationale!, 15)}</p>
           ) : (
             <p className="text-gray-500 text-xs italic truncate flex-1">
               Run scan to analyze what&apos;s driving this position
@@ -874,7 +907,7 @@ function CostBasisCell({
 
   return (
     <div
-      className={`${width} text-right shrink-0 cursor-text group/cost`}
+      className={`${width} shrink-0 cursor-text group/cost`}
       onClick={(e) => { e.stopPropagation(); setEditing(true); }}
     >
       {h.costBasis != null ? (
@@ -911,7 +944,7 @@ function ThesisIndicator({ thesis, thesisStatus, active }: { thesis: string | nu
     <div className="flex items-center gap-1.5 cursor-pointer" title={active ? 'Click to collapse' : statusLabel}>
       <div className={`w-2 h-2 rounded-full border transition-colors ${active ? 'bg-blue-400 border-blue-300' : statusStyle}`} />
       {thesisStatus && (
-        <span className={`text-[10px] ${
+        <span className={`text-[12px] ${
           thesisStatus === 'confirmed' ? 'text-emerald-400' :
           thesisStatus === 'challenged' ? 'text-red-400' :
           'text-amber-400'
@@ -979,6 +1012,52 @@ function ThesisPanel({ holding, onSave }: { holding: Holding; onSave: (t: string
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Anomaly flag indicator ────────────────────────────────────────────────────
+
+const SEVERITY_COLORS: Record<string, { icon: string; bg: string; border: string }> = {
+  high:   { icon: 'text-red-400',    bg: 'bg-red-950',    border: 'border-red-800'    },
+  medium: { icon: 'text-amber-400',  bg: 'bg-amber-950',  border: 'border-amber-800'  },
+  low:    { icon: 'text-yellow-500', bg: 'bg-yellow-950', border: 'border-yellow-800' },
+};
+
+function AnomalyIndicator({ flags }: { flags: AnomalyFlag[] }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const highest = flags.find((f) => f.severity === 'high')
+    ?? flags.find((f) => f.severity === 'medium')
+    ?? flags[0];
+  const colors = SEVERITY_COLORS[highest.severity] ?? SEVERITY_COLORS.low;
+
+  return (
+    <div
+      className="relative flex items-center"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="relative flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-50" />
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+      </span>
+
+      {showTooltip && (
+        <div className={`absolute right-6 top-1/2 -translate-y-1/2 z-50 w-64 ${colors.bg} border ${colors.border} rounded-lg shadow-2xl p-2.5`}>
+          {flags.map((flag, i) => (
+            <div key={flag.id} className={i > 0 ? 'mt-2 pt-2 border-t border-gray-800' : ''}>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className={`text-[12px] font-semibold uppercase tracking-wider ${SEVERITY_COLORS[flag.severity]?.icon ?? 'text-gray-400'}`}>
+                  {flag.severity}
+                </span>
+                <span className="text-[12px] text-gray-500">{flag.flagType.replace(/_/g, ' ')}</span>
+              </div>
+              <p className="text-[12px] text-gray-300 leading-relaxed">{flag.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

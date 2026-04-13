@@ -65,7 +65,22 @@ export async function analyzePortfolio(params: AnalyzePortfolioParams): Promise<
       snappedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.warn('[Portfolio] Regime check failed:', err instanceof Error ? err.message : err);
+    console.warn('[Portfolio] Regime check failed, using SPY-based fallback:', err instanceof Error ? err.message : err);
+    // Fallback: classify regime from SPY change alone
+    const pct = spyQuote.changePercentage;
+    if (pct <= -3) regime = 'dislocation';
+    else if (pct <= -1) regime = 'risk_off';
+    else if (pct >= 0.5) regime = 'risk_on';
+    else regime = 'rotation';
+    regimeRationale = `Fallback classification based on SPY ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% daily change (Claude API unavailable).`;
+
+    await db.insert(regimeSnapshots).values({
+      regime,
+      rationale: regimeRationale,
+      spyChange: pct,
+      vix: null,
+      snappedAt: new Date().toISOString(),
+    }).catch(() => {}); // best-effort insert
   }
 
   // ── Step 8: Anomaly Detection ──

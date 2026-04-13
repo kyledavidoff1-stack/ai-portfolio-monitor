@@ -269,16 +269,62 @@ export async function fetchAnalystEstimatesMulti(ticker: string): Promise<Analys
 /**
  * Fetch quarterly analyst estimates (multiple future quarters).
  * Returns array sorted by date ascending (oldest first).
+ *
+ * FMP's quarterly estimates endpoint requires a premium plan.
+ * When unavailable, we derive quarterly estimates from annual estimates
+ * by splitting each future year into 4 quarters (÷4 approximation).
  */
 export async function fetchAnalystEstimatesQuarterly(ticker: string): Promise<AnalystEstimate[]> {
   const symbol = ticker.toUpperCase();
+
+  // Try the real quarterly endpoint first
   try {
     const data = await fmpFetch<AnalystEstimate[]>(
       `/analyst-estimates?symbol=${symbol}&period=quarter&limit=8`
     );
-    if (!Array.isArray(data) || data.length === 0) return [];
-    // FMP returns descending — reverse to ascending
-    return [...data].reverse();
+    if (Array.isArray(data) && data.length > 0) {
+      return [...data].reverse();
+    }
+  } catch {
+    // Premium-gated or failed — fall through to derivation
+  }
+
+  // Derive from annual estimates
+  try {
+    const annual = await fetchAnalystEstimatesMulti(symbol);
+    if (annual.length === 0) return [];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const quarters: AnalystEstimate[] = [];
+
+    for (const yr of annual) {
+      const fyYear = parseInt(yr.date.slice(0, 4), 10);
+      if (isNaN(fyYear)) continue;
+
+      // Generate Q1-Q4 end dates for this fiscal year
+      const qDates = [
+        `${fyYear}-03-31`,
+        `${fyYear}-06-30`,
+        `${fyYear}-09-30`,
+        `${fyYear}-12-31`,
+      ];
+
+      for (const qDate of qDates) {
+        if (qDate <= today) continue; // skip past quarters
+        quarters.push({
+          symbol,
+          date: qDate,
+          epsAvg: yr.epsAvg != null ? yr.epsAvg / 4 : null,
+          revenueAvg: yr.revenueAvg != null ? yr.revenueAvg / 4 : null,
+          netIncomeAvg: yr.netIncomeAvg != null ? yr.netIncomeAvg / 4 : null,
+          ebitAvg: yr.ebitAvg != null ? yr.ebitAvg / 4 : null,
+          ebitdaAvg: yr.ebitdaAvg != null ? yr.ebitdaAvg / 4 : null,
+        });
+      }
+    }
+
+    // Sort ascending, take up to 8
+    return quarters.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
   } catch {
     return [];
   }

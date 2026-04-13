@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface ScanState {
@@ -20,13 +20,144 @@ export function ScanButton({
 }) {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Parse an SSE stream from GET /api/scan and pipe events into onProgress
+  const observeScan = useCallback(
+    async (signal: AbortSignal) => {
+      const completedTickers = new Set<string>();
+      let lastTicker: string | null = null;
+      let total = 0;
+
+      try {
+        const response = await fetch('/api/scan', { signal });
+        if (!response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          let eventType = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7);
+            } else if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (eventType === 'idle') {
+                  // No scan running — clear UI
+                  setScanning(false);
+                  onProgress?.(null);
+                  return;
+                }
+
+                if (eventType === 'progress') {
+                  if (data.totalTickers) total = data.totalTickers;
+                  if (data.ticker && lastTicker && data.ticker !== lastTicker) {
+                    completedTickers.add(lastTicker);
+                  }
+                  if (data.ticker) lastTicker = data.ticker;
+
+                  onProgress?.({
+                    scanning: true,
+                    currentTicker: data.ticker ?? null,
+                    currentStep: data.step ?? null,
+                    currentIdx: data.currentTicker ?? 0,
+                    totalTickers: total,
+                    completedTickers: new Set(completedTickers),
+                    message: data.message ?? '',
+                  });
+                } else if (eventType === 'error') {
+                  onProgress?.({
+                    scanning: true,
+                    currentTicker: lastTicker,
+                    currentStep: null,
+                    currentIdx: completedTickers.size,
+                    totalTickers: total,
+                    completedTickers: new Set(completedTickers),
+                    message: data.message ?? 'Error',
+                  });
+                } else if (eventType === 'complete') {
+                  if (lastTicker) completedTickers.add(lastTicker);
+                  onProgress?.({
+                    scanning: false,
+                    currentTicker: null,
+                    currentStep: null,
+                    currentIdx: total,
+                    totalTickers: total,
+                    completedTickers: new Set(completedTickers),
+                    message: 'Scan complete',
+                  });
+
+                  setTimeout(() => {
+                    router.refresh();
+                    setScanning(false);
+                    setTimeout(() => onProgress?.(null), 3000);
+                  }, 1000);
+                  return;
+                }
+              } catch { /* ignore parse errors */ }
+            }
+          }
+        }
+      } catch (err) {
+        // AbortError is expected on unmount / re-navigate
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+
+        onProgress?.({
+          scanning: false,
+          currentTicker: null,
+          currentStep: null,
+          currentIdx: 0,
+          totalTickers: total,
+          completedTickers: new Set(completedTickers),
+          message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        });
+        setScanning(false);
+      }
+    },
+    [router, onProgress],
+  );
+
+  // On mount: check if a scan is already running and reconnect
+  useEffect(() => {
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    // Quick probe: POST would return 409 if running, but we can just GET —
+    // the GET stream sends 'idle' immediately if nothing is running.
+    setScanning(true);
+    onProgress?.({
+      scanning: true,
+      currentTicker: null,
+      currentStep: null,
+      currentIdx: 0,
+      totalTickers: 0,
+      completedTickers: new Set(),
+      message: 'Checking scan status...',
+    });
+
+    observeScan(ac.signal).finally(() => {
+      // If GET returned idle, scanning is already set to false inside observeScan
+    });
+
+    return () => {
+      ac.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleScan = useCallback(async () => {
     setScanning(true);
-    const completedTickers = new Set<string>();
-    let lastTicker: string | null = null;
-    let total = 0;
-
     onProgress?.({
       scanning: true,
       currentTicker: null,
@@ -38,102 +169,43 @@ export function ScanButton({
     });
 
     try {
-      const response = await fetch('/api/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'full' }),
-      });
+      const res = await fetch('/api/scan', { method: 'POST' });
 
-      if (!response.body) {
-        onProgress?.(null);
+      if (res.status === 409) {
+        // Already running — just observe
+      } else if (!res.ok) {
+        const body = await res.text();
+        onProgress?.({
+          scanning: false,
+          currentTicker: null,
+          currentStep: null,
+          currentIdx: 0,
+          totalTickers: 0,
+          completedTickers: new Set(),
+          message: `Failed to start scan: ${body}`,
+        });
         setScanning(false);
         return;
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-
-              if (eventType === 'progress') {
-                if (data.totalTickers) total = data.totalTickers;
-                if (data.ticker && lastTicker && data.ticker !== lastTicker) {
-                  completedTickers.add(lastTicker);
-                }
-                if (data.ticker) lastTicker = data.ticker;
-
-                onProgress?.({
-                  scanning: true,
-                  currentTicker: data.ticker ?? null,
-                  currentStep: data.step ?? null,
-                  currentIdx: data.currentTicker ?? 0,
-                  totalTickers: total,
-                  completedTickers: new Set(completedTickers),
-                  message: data.message ?? '',
-                });
-              } else if (eventType === 'error') {
-                // Non-fatal — just update message
-                onProgress?.({
-                  scanning: true,
-                  currentTicker: lastTicker,
-                  currentStep: null,
-                  currentIdx: completedTickers.size,
-                  totalTickers: total,
-                  completedTickers: new Set(completedTickers),
-                  message: data.message ?? 'Error',
-                });
-              } else if (eventType === 'complete') {
-                if (lastTicker) completedTickers.add(lastTicker);
-                onProgress?.({
-                  scanning: false,
-                  currentTicker: null,
-                  currentStep: null,
-                  currentIdx: total,
-                  totalTickers: total,
-                  completedTickers: new Set(completedTickers),
-                  message: 'Scan complete',
-                });
-              }
-            } catch { /* ignore parse errors */ }
-          }
-        }
-      }
-
-      // Reload page to show new data
-      setTimeout(() => {
-        router.refresh();
-        setScanning(false);
-        // Auto-clear after 3s
-        setTimeout(() => onProgress?.(null), 3000);
-      }, 1000);
+      // Observe progress via GET SSE
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      await observeScan(ac.signal);
     } catch (err) {
       onProgress?.({
         scanning: false,
         currentTicker: null,
         currentStep: null,
         currentIdx: 0,
-        totalTickers: total,
-        completedTickers: new Set(completedTickers),
+        totalTickers: 0,
+        completedTickers: new Set(),
         message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
       });
       setScanning(false);
     }
-  }, [router, onProgress]);
+  }, [onProgress, observeScan]);
 
   return (
     <button

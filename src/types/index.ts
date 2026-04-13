@@ -38,16 +38,38 @@ export interface FiveMetrics {
   financialHealth: FiveMetricEntry;
 }
 
+export interface SentimentHeadline {
+  headline: string;
+  source: string;
+  date: string;
+}
+
+export interface AnalystRating {
+  firm: string;
+  action: string;       // e.g. "Upgrade", "Downgrade", "Reiterate", "Initiate"
+  priceTarget: string;  // e.g. "$220" or "$180 → $220"
+}
+
 export interface NewsSentiment {
-  summary: string;
-  sentiment: 'bullish' | 'bearish' | 'neutral';
+  // New structured fields
+  overall_tone: 'bullish' | 'bearish' | 'neutral';
+  today_summary: string;
+  institutional_today: string;
+  social_today: string;
+  key_headlines: SentimentHeadline[];
+  analyst_ratings: AnalystRating[];
+  context_30_60: string;
+  // Legacy score fields (kept for sentiment bars)
   score: number; // -1 to 1
-  keyHeadlines: string[];
-  socialBuzz: string;
-  twitterScore: number | null;   // -1 to 1
+  twitterScore: number | null;
   redditScore: number | null;
   mediaScore: number | null;
   analystScore: number | null;
+  // Deprecated — kept for backward compat with old scans
+  summary?: string;
+  sentiment?: 'bullish' | 'bearish' | 'neutral';
+  keyHeadlines?: string[];
+  socialBuzz?: string;
 }
 
 export type CatalystCategory = 'thesis' | 'macro' | 'sector' | 'sentiment' | 'fundamental';

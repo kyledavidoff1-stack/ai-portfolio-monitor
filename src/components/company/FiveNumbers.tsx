@@ -150,7 +150,7 @@ function MetricCard({ card }: { card: MetricCardData }) {
                 </ResponsiveContainer>
               </div>
               {card.dateRange && (
-                <p className="text-[11px] text-gray-600 text-center mt-0.5">{card.dateRange}</p>
+                <p className="text-[12px] text-gray-600 text-center mt-0.5">{card.dateRange}</p>
               )}
             </div>
           ) : (

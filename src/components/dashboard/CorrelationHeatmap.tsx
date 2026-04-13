@@ -76,7 +76,7 @@ export function CorrelationHeatmap({ data }: { data: CorrelationMatrix | null })
           {tickers.map((t, j) => (
             <div
               key={`h-${t}`}
-              className="text-[11px] font-mono text-gray-500 text-center truncate px-0.5"
+              className="text-[12px] font-mono text-gray-500 text-center truncate px-0.5"
               style={{ gridRow: 1, gridColumn: j + 2 }}
               title={t}
             >
@@ -88,7 +88,7 @@ export function CorrelationHeatmap({ data }: { data: CorrelationMatrix | null })
           {tickers.map((t, i) => (
             <div
               key={`r-${t}`}
-              className="text-[11px] font-mono text-gray-500 flex items-center justify-end pr-1 truncate"
+              className="text-[12px] font-mono text-gray-500 flex items-center justify-end pr-1 truncate"
               style={{ gridRow: i + 2, gridColumn: 1 }}
               title={t}
             >
@@ -120,7 +120,7 @@ export function CorrelationHeatmap({ data }: { data: CorrelationMatrix | null })
                 >
                   {n <= 8 && (
                     <span
-                      className="text-[10px] font-mono font-medium leading-none"
+                      className="text-[12px] font-mono font-medium leading-none"
                       style={{ color: isSelf ? '#6b7280' : corrTextColor(val) }}
                     >
                       {isSelf ? '—' : val.toFixed(2)}
@@ -135,13 +135,13 @@ export function CorrelationHeatmap({ data }: { data: CorrelationMatrix | null })
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-3 pt-1">
-        <span className="text-[11px] text-gray-500">-1.0</span>
+        <span className="text-[12px] text-gray-500">-1.0</span>
         <div className="flex h-2 w-32 rounded-full overflow-hidden">
           {Array.from({ length: 20 }).map((_, i) => (
             <div key={i} className="flex-1" style={{ backgroundColor: corrColor((i / 19) * 2 - 1) }} />
           ))}
         </div>
-        <span className="text-[11px] text-gray-500">+1.0</span>
+        <span className="text-[12px] text-gray-500">+1.0</span>
       </div>
     </div>
   );

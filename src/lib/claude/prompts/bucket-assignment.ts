@@ -18,8 +18,9 @@ export function buildBucketAssignmentPrompt(params: {
 
   const priceContext = `Today's moves: ${ticker} ${dailyChange >= 0 ? '+' : ''}${dailyChange.toFixed(2)}% | SPY ${spyChange >= 0 ? '+' : ''}${spyChange.toFixed(2)}% | Sector ETF ${sectorEtfChange >= 0 ? '+' : ''}${sectorEtfChange.toFixed(2)}%`;
 
+  const headlines = newsSentiment?.key_headlines?.map(h => h.headline) ?? newsSentiment?.keyHeadlines ?? [];
   const sentimentContext = newsSentiment
-    ? `News & Sentiment: ${newsSentiment.sentiment} (score: ${newsSentiment.score.toFixed(2)})\nSummary: ${newsSentiment.summary}\nKey headlines: ${newsSentiment.keyHeadlines.join('; ')}`
+    ? `News & Sentiment: ${newsSentiment.overall_tone ?? newsSentiment.sentiment} (score: ${newsSentiment.score.toFixed(2)})\nSummary: ${newsSentiment.today_summary ?? newsSentiment.summary}\nKey headlines: ${headlines.join('; ')}`
     : 'News & Sentiment: No data available';
 
   const fundamentalContext = fundamentalOutlook

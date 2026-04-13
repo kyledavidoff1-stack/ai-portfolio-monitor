@@ -72,7 +72,7 @@ export function RefreshButton({ ticker }: Props) {
   return (
     <div className="flex items-center gap-2">
       {refreshing && progress && (
-        <span className="text-[11px] text-gray-400 font-mono max-w-[200px] truncate">
+        <span className="text-[12px] text-gray-400 font-mono max-w-[200px] truncate">
           {progress}
         </span>
       )}

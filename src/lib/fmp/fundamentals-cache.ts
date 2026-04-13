@@ -49,7 +49,9 @@ export async function getFundamentals(ticker: string): Promise<FundamentalsBlob>
     const blob = JSON.parse(cached.data) as FundamentalsBlob;
     // Don't serve cached empty results — treat them as a cache miss so we retry
     // Also invalidate blobs missing newer fields (annualIncome added in sprint 4)
-    if ((blob.income.length > 0 || blob.unavailable) && blob.annualIncome !== undefined && blob.quarterlyEstimates !== undefined) {
+    // Invalidate if quarterly estimates are empty but annual estimates exist (derivation needed)
+    const needsQDerivation = blob.quarterlyEstimates?.length === 0 && blob.analystEstimates?.length > 0;
+    if ((blob.income.length > 0 || blob.unavailable) && blob.annualIncome !== undefined && blob.quarterlyEstimates !== undefined && !needsQDerivation) {
       console.log(`[Fundamentals] Cache HIT: ${symbol}`);
       return blob;
     }

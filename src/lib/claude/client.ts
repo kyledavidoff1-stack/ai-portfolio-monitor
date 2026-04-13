@@ -25,6 +25,8 @@ export interface CallClaudeOptions {
   maxTokens?: number;
 }
 
+const GLOBAL_SYSTEM_PREFIX = `Be extremely concise. Every output should be scannable in under 5 seconds. Use short punchy phrases rather than full paragraphs. Full sentences are acceptable when needed to explain something nuanced, but default to brevity. No filler words. No hedging language. No "it is worth noting" or "it should be mentioned." Get to the point immediately. The user is a busy investor checking their portfolio, not reading a research report.`;
+
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 4000, 16000];
 
@@ -82,7 +84,7 @@ export async function callClaude<T>(options: CallClaudeOptions): Promise<T> {
       const response = await client.messages.create({
         model: CLAUDE_MODEL,
         max_tokens: maxTokens,
-        system,
+        system: `${GLOBAL_SYSTEM_PREFIX}\n\n${system}`,
         messages: [{ role: 'user', content: userMessage }],
         ...(tools.length > 0 ? { tools } : {}),
       });

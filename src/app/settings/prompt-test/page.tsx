@@ -167,7 +167,7 @@ export default function PromptTestPage() {
         <div className="flex items-end gap-3 flex-wrap">
           {/* Step dropdown */}
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-[11px] text-gray-500 uppercase tracking-widest mb-1 font-medium">
+            <label className="block text-[12px] text-gray-500 uppercase tracking-widest mb-1 font-medium">
               Pipeline Step
             </label>
             <select
@@ -190,7 +190,7 @@ export default function PromptTestPage() {
 
           {/* Ticker input */}
           <div className="w-32">
-            <label className="block text-[11px] text-gray-500 uppercase tracking-widest mb-1 font-medium">
+            <label className="block text-[12px] text-gray-500 uppercase tracking-widest mb-1 font-medium">
               Ticker
             </label>
             <input
@@ -236,22 +236,22 @@ export default function PromptTestPage() {
         {/* Step info badges */}
         <div className="flex items-center gap-2 mt-3">
           {stepInfo?.webSearch && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-400 border border-amber-800/50">
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-400 border border-amber-800/50">
               Web Search Enabled
             </span>
           )}
           {hasDeps && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-400 border border-blue-800/50">
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-400 border border-blue-800/50">
               Uses Cached Prior Steps
             </span>
           )}
           {step === 'regime' && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
               Portfolio-level (ticker ignored)
             </span>
           )}
           {step === 'anomaly' && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
+            <span className="text-[12px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
               Portfolio-level (all holdings)
             </span>
           )}
@@ -268,14 +268,14 @@ export default function PromptTestPage() {
       {/* Dependencies notice */}
       {promptLoaded && Object.keys(dependencies).length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3">
-          <p className="text-[11px] text-gray-500 uppercase tracking-widest font-medium mb-2">
+          <p className="text-[12px] text-gray-500 uppercase tracking-widest font-medium mb-2">
             Data Sources
           </p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1">
             {Object.entries(dependencies).map(([key, val]) => (
               <div key={key} className="flex items-center gap-2">
-                <span className="text-[11px] text-gray-400 font-mono">{key}:</span>
-                <span className="text-[11px] text-gray-500 truncate">{val}</span>
+                <span className="text-[12px] text-gray-400 font-mono">{key}:</span>
+                <span className="text-[12px] text-gray-500 truncate">{val}</span>
               </div>
             ))}
           </div>
@@ -288,10 +288,10 @@ export default function PromptTestPage() {
           {/* System prompt */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800/60">
-              <span className="text-[11px] text-gray-500 uppercase tracking-widest font-medium">
+              <span className="text-[12px] text-gray-500 uppercase tracking-widest font-medium">
                 System Prompt
               </span>
-              <span className="text-[10px] text-gray-600 font-mono">
+              <span className="text-[12px] text-gray-600 font-mono">
                 {systemPrompt.length.toLocaleString()} chars
               </span>
             </div>
@@ -308,14 +308,14 @@ export default function PromptTestPage() {
           <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
             <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800/60">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-gray-500 uppercase tracking-widest font-medium">
+                <span className="text-[12px] text-gray-500 uppercase tracking-widest font-medium">
                   User Message Template
                 </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-800/30 font-mono">
+                <span className="text-[12px] px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-500 border border-amber-800/30 font-mono">
                   {'${...}'} = dynamic data
                 </span>
               </div>
-              <span className="text-[10px] text-gray-600 font-mono">
+              <span className="text-[12px] text-gray-600 font-mono">
                 {userMessageTemplate.length.toLocaleString()} chars
               </span>
             </div>
@@ -335,14 +335,14 @@ export default function PromptTestPage() {
               className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-gray-800/30 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-gray-600 uppercase tracking-widest font-medium">
+                <span className="text-[12px] text-gray-600 uppercase tracking-widest font-medium">
                   Rendered Preview
                 </span>
-                <span className="text-[10px] text-gray-700">
+                <span className="text-[12px] text-gray-700">
                   User message with data injected
                 </span>
               </div>
-              <span className="text-[10px] text-gray-600">{showRendered ? '\u25BC' : '\u25B6'}</span>
+              <span className="text-[12px] text-gray-600">{showRendered ? '\u25BC' : '\u25B6'}</span>
             </button>
             {showRendered && (
               <div className="border-t border-gray-800/50 px-4 py-3 max-h-[300px] overflow-auto">
@@ -359,17 +359,17 @@ export default function PromptTestPage() {
               <button
                 onClick={saveToSource}
                 disabled={saving || (!systemPrompt && !userMessageTemplate)}
-                className="text-[11px] px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                className="text-[12px] px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium"
               >
                 {saving ? 'Saving...' : 'Save to Source'}
               </button>
               {saveResult && (
-                <span className={`text-[10px] ${saveResult.ok ? 'text-green-400' : 'text-red-400'}`}>
+                <span className={`text-[12px] ${saveResult.ok ? 'text-green-400' : 'text-red-400'}`}>
                   {saveResult.message}
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-gray-600">
+            <span className="text-[12px] text-gray-600">
               Writes both prompts back to the template file
             </span>
           </div>
@@ -382,14 +382,14 @@ export default function PromptTestPage() {
           {/* Output header with stats */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-800/60">
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-gray-500 uppercase tracking-widest font-medium">
+              <span className="text-[12px] text-gray-500 uppercase tracking-widest font-medium">
                 Output
               </span>
               {/* Tabs */}
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setOutputTab('parsed')}
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
+                  className={`text-[12px] px-2 py-0.5 rounded transition-colors ${
                     outputTab === 'parsed'
                       ? 'bg-gray-700 text-gray-200'
                       : 'text-gray-500 hover:text-gray-300'
@@ -399,7 +399,7 @@ export default function PromptTestPage() {
                 </button>
                 <button
                   onClick={() => setOutputTab('raw')}
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
+                  className={`text-[12px] px-2 py-0.5 rounded transition-colors ${
                     outputTab === 'raw'
                       ? 'bg-gray-700 text-gray-200'
                       : 'text-gray-500 hover:text-gray-300'
@@ -412,17 +412,17 @@ export default function PromptTestPage() {
 
             {/* Stats */}
             <div className="flex items-center gap-4">
-              <span className="text-[10px] text-gray-500 font-mono">
+              <span className="text-[12px] text-gray-500 font-mono">
                 {result.model}
               </span>
-              <span className="text-[10px] text-gray-500 font-mono">
+              <span className="text-[12px] text-gray-500 font-mono">
                 {result.inputTokens.toLocaleString()} in / {result.outputTokens.toLocaleString()} out
               </span>
-              <span className="text-[10px] text-gray-500 font-mono">
+              <span className="text-[12px] text-gray-500 font-mono">
                 {(result.durationMs / 1000).toFixed(1)}s
               </span>
               {result.parseError && (
-                <span className="text-[10px] text-amber-400">
+                <span className="text-[12px] text-amber-400">
                   Parse error: {result.parseError}
                 </span>
               )}

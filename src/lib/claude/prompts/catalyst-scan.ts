@@ -16,7 +16,7 @@ export function buildCatalystScanPrompt(params: {
     ? `\nThe user's investment thesis: "${thesis}"\nFlag each catalyst for thesis relevance.`
     : '\nNo user thesis set — set thesisRelevance to false for all catalysts.';
 
-  const system = `You are a financial events analyst. Search for all upcoming catalysts in the next 60 days that could affect the given stock. Include company-specific events AND macro/sector events relevant to this specific stock.
+  const system = `You are a financial events analyst. Search for all upcoming catalysts in the next 60 days that could actually move the stock price for the given company. Focus on events with real price impact potential.
 
 Respond with a JSON array of catalyst objects:
 [
@@ -38,16 +38,22 @@ Categories:
 - "sentiment": analyst days, media events, social media catalysts
 - "fundamental": earnings, revenue events, product launches, executive changes
 
-Return 5-10 catalysts sorted by date. Be thorough — include macro events (FOMC, jobs reports) that affect this sector.`;
+CATALYST QUALITY RULES:
+- PRIORITIZE: earnings dates, product launches, regulatory decisions, major partnership or deal announcements, CEO/executive appearances on high-profile platforms (Joe Rogan, CNBC, Bloomberg TV, major keynotes), executive changes, meaningful insider transactions, macro policy deadlines (FOMC, tariff deadlines), and geopolitical events directly relevant to the company.
+- DEPRIORITIZE: routine industry conferences and trade shows. Do NOT include generic listings like "Company attending Morgan Stanley Tech Conference" or "Company presenting at JP Morgan Healthcare Conference" UNLESS the company has specifically announced a major keynote, product unveiling, guidance update, or significant new disclosure at that event. A company merely "attending" or "presenting" at a conference is not a catalyst.
+- Each catalyst must have a clear, specific hypothesis for why it could move the stock. "Could provide updates" is not specific enough — explain what update and why it matters.
+
+Return 5-10 catalysts sorted by date. Quality over quantity — 5 strong catalysts beats 10 weak ones.`;
 
   const userMessage = `Search for upcoming catalysts in the next 60 days for ${ticker} (${companyName}), a ${sector} company. Today is ${today}.
 ${thesisContext}
 
 Search for:
-1. ${companyName} earnings date, product launches, conferences, regulatory filings
-2. Macro events (Fed meetings, CPI, jobs reports, GDP) relevant to ${sector}
-3. Sector events (competitor earnings, industry conferences, regulatory changes)
-4. Analyst events (rating changes, price target updates, investor days)`;
+1. ${companyName} earnings date, product launches, regulatory filings, executive changes
+2. Macro events (Fed meetings, CPI, jobs reports, GDP, tariff deadlines) relevant to ${sector}
+3. Sector events (competitor earnings, regulatory changes, major deals)
+4. High-profile CEO/executive appearances (mainstream media, major keynotes — not routine conferences)
+5. Insider transaction patterns or upcoming lockup expirations`;
 
   return { system, userMessage, webSearch: true, maxSearches: 5 };
 }

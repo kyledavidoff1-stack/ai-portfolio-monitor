@@ -13,9 +13,10 @@ import { SectorRelativeChart, RelativePerfPoint } from './SectorRelativeChart';
 import type { PeerRow, RevenueSegment, AnalysisScan, NewsSentiment, DriverAnalysis, ThesisCheck, Catalyst, Bucket, BucketConfidence } from '@/types';
 import { fmtB, pctAbs } from '@/utils/format';
 import { BUCKET_LABELS } from '@/lib/config/constants';
+import { StepRefreshButton } from './StepRefreshButton';
 
 // Bump key to force-reset any cached layouts when the default arrangement changes
-const STORAGE_KEY = 'pm:company-layout-v7';
+const STORAGE_KEY = 'pm:company-layout-v8';
 const ROW_HEIGHT = 50;
 const MARGIN: [number, number] = [12, 12];
 
@@ -24,27 +25,26 @@ const MARGIN: [number, number] = [12, 12];
 // Pixel height of panel = h * (ROW_HEIGHT + MARGIN) - MARGIN = h*62 - 12
 //
 // Row 1: Driver (left, h=8, ends y=8) | Thesis (right, h=6, ends y=6)
-// Row 2: Sentiment (left, y=8, h=4, ends y=12) | SectorRel (right, y=6, h=6, ends y=12)
-//         ↑ both columns end at y=12
-// Row 3: Catalysts full-width at y=12, h=4, ends y=16
-// Row 4: 5Numbers (left, h=8, ends y=24) | RevenueFlow (right, h=8, ends y=24)
-//         ↑ 5Numbers stretched to match RevenueFlow bottom edge — both end at y=24
-// Row 5: Fundamentals full-width at y=24, h=4 (snug fit for table content)
+// Row 2: Sentiment (left, y=8, h=8, ends y=16) | SectorRel (right, y=6, h=10, ends y=16)
+//         ↑ both columns end at y=16
+// Row 3: Catalysts full-width at y=16, h=4, ends y=20
+// Row 4: 5Numbers (left, h=8, ends y=28) | RevenueFlow (right, h=8, ends y=28)
+// Row 5: Fundamentals full-width at y=28, h=4
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
   // Row 1: Driver (left, 40%) | Thesis (right, 60%)
   { i: 'driver',       x: 0,  y: 0,  w: 5,  h: 8,  minW: 3, minH: 3 },
   { i: 'thesis',       x: 5,  y: 0,  w: 7,  h: 6,  minW: 4, minH: 4 },
-  // Row 2: Sentiment & SectorRel — both end at y=12, flush with Catalysts below
-  { i: 'sentiment',    x: 0,  y: 8,  w: 5,  h: 4,  minW: 3, minH: 3 },
-  { i: 'sectorrel',    x: 5,  y: 6,  w: 7,  h: 6,  minW: 4, minH: 5 },
-  // Row 3: Catalysts full-width, y=12
-  { i: 'catalysts',    x: 0,  y: 12, w: 12, h: 4,  minW: 6, minH: 3 },
-  // Row 4: Metrics & Revenue Flow — both end at y=24, flush with Fundamentals below
-  { i: '5numbers',     x: 0,  y: 16, w: 5,  h: 8,  minW: 3, minH: 5 },
-  { i: 'revenueflow',  x: 5,  y: 16, w: 7,  h: 8,  minW: 5, minH: 5 },
-  // Row 5: Fundamentals full-width, h=4 (236px — snug fit for 8-quarter table)
-  { i: 'fundamentals', x: 0,  y: 24, w: 12, h: 4,  minW: 6, minH: 3 },
+  // Row 2: Sentiment & SectorRel — both end at y=16
+  { i: 'sentiment',    x: 0,  y: 8,  w: 5,  h: 8,  minW: 3, minH: 5 },
+  { i: 'sectorrel',    x: 5,  y: 6,  w: 7,  h: 10, minW: 4, minH: 5 },
+  // Row 3: Catalysts full-width, y=16
+  { i: 'catalysts',    x: 0,  y: 16, w: 12, h: 4,  minW: 6, minH: 3 },
+  // Row 4: Metrics & Revenue Flow — both end at y=28
+  { i: '5numbers',     x: 0,  y: 20, w: 5,  h: 8,  minW: 3, minH: 5 },
+  { i: 'revenueflow',  x: 5,  y: 20, w: 7,  h: 8,  minW: 5, minH: 5 },
+  // Row 5: Fundamentals full-width
+  { i: 'fundamentals', x: 0,  y: 28, w: 12, h: 4,  minW: 6, minH: 3 },
 ];
 
 function loadLayout(): LayoutItem[] {
@@ -137,34 +137,87 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
           resizeConfig={{ enabled: true, handles: ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] }}
           onLayoutChange={handleLayoutChange}
         >
-          {/* ── Sentiment ── */}
+          {/* ── Today's Sentiment ── */}
           <div key="sentiment">
-            <DraggablePanel title="Sentiment" badge={sentiment ? sentiment.sentiment : undefined}>
+            <DraggablePanel title="Today's Sentiment" badge={sentiment ? (sentiment.overall_tone ?? sentiment.sentiment) : undefined} headerRight={<StepRefreshButton ticker={ticker} step="news" />}>
               {sentiment ? (
-                <div className="space-y-4">
-                  <p className="text-xs text-gray-300 leading-relaxed">{sentiment.summary}</p>
-                  {sentiment.keyHeadlines.length > 0 && (
+                <div className="space-y-3 overflow-y-auto max-h-[calc(100%-2rem)]">
+                  {/* Summary */}
+                  <div>
+                    <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Summary</p>
+                    <p className="text-xs text-gray-300 leading-relaxed">{sentiment.today_summary ?? sentiment.summary}</p>
+                  </div>
+
+                  {/* Institutional */}
+                  {sentiment.institutional_today && (
                     <div>
-                      <p className="text-[13px] font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Key Headlines</p>
+                      <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Institutional</p>
+                      <p className="text-xs text-gray-400 leading-relaxed">{sentiment.institutional_today}</p>
+                    </div>
+                  )}
+
+                  {/* Social */}
+                  {sentiment.social_today && (
+                    <div>
+                      <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Social</p>
+                      <p className="text-xs text-gray-400 leading-relaxed">{sentiment.social_today}</p>
+                    </div>
+                  )}
+
+                  {/* Key Headlines */}
+                  {((sentiment.key_headlines && sentiment.key_headlines.length > 0) || (sentiment.keyHeadlines && sentiment.keyHeadlines.length > 0)) && (
+                    <div>
+                      <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Key Headlines</p>
                       <ul className="space-y-1">
-                        {sentiment.keyHeadlines.slice(0, 4).map((h, i) => (
+                        {sentiment.key_headlines ? (
+                          sentiment.key_headlines.slice(0, 5).map((h, i) => (
+                            <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
+                              <span className="text-gray-600 mt-0.5 shrink-0">•</span>
+                              <span>{h.headline} <span className="text-gray-600">— {h.source}, {h.date}</span></span>
+                            </li>
+                          ))
+                        ) : (
+                          sentiment.keyHeadlines!.slice(0, 4).map((h, i) => (
+                            <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
+                              <span className="text-gray-600 mt-0.5 shrink-0">•</span>
+                              {h}
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Analyst Ratings */}
+                  {sentiment.analyst_ratings && sentiment.analyst_ratings.length > 0 && (
+                    <div>
+                      <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Analyst Ratings</p>
+                      <ul className="space-y-1">
+                        {sentiment.analyst_ratings.map((r, i) => (
                           <li key={i} className="text-xs text-gray-400 flex items-start gap-1.5">
                             <span className="text-gray-600 mt-0.5 shrink-0">•</span>
-                            {h}
+                            <span><span className="text-gray-300 font-medium">{r.firm}</span> — {r.action} {r.priceTarget && <span className="text-gray-500">({r.priceTarget})</span>}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  <div className="space-y-2">
+
+                  {/* Sentiment Bars */}
+                  <div className="space-y-1.5">
                     <SentimentBar label="Overall" score={sentiment.score} />
                     <SentimentBar label="Twitter/X" score={sentiment.twitterScore} />
                     <SentimentBar label="Reddit" score={sentiment.redditScore} />
                     <SentimentBar label="Media" score={sentiment.mediaScore} />
                     <SentimentBar label="Analysts" score={sentiment.analystScore} />
                   </div>
-                  {sentiment.socialBuzz && (
-                    <p className="text-[11px] text-gray-500 italic">{sentiment.socialBuzz}</p>
+
+                  {/* Context 30-60 day */}
+                  {sentiment.context_30_60 && (
+                    <div className="border-t border-gray-800 pt-2">
+                      <p className="text-[12px] font-semibold text-gray-500 uppercase tracking-widest mb-1">Context</p>
+                      <p className="text-xs text-gray-500 leading-relaxed italic">{sentiment.context_30_60}</p>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -191,7 +244,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Thesis ── */}
           <div key="thesis">
-            <DraggablePanel title="Thesis">
+            <DraggablePanel title="Thesis" headerRight={<StepRefreshButton ticker={ticker} step="thesis" />}>
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[13px] font-semibold text-gray-400 uppercase tracking-widest">
@@ -281,19 +334,22 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Driver Analysis ── */}
           <div key="driver">
-            <DraggablePanel title="Driver Analysis">
+            <DraggablePanel title="Driver Analysis" headerRight={<StepRefreshButton ticker={ticker} step="bucket" />}>
               <div className="divide-y divide-gray-800/50">
                 <TimeSection period="Today" label="Current drivers">
                   <BucketDots active={driverAnalysis?.today.primaryBucket ?? null} />
                   {driverAnalysis?.today ? (
-                    <div className="mt-2.5 space-y-1">
+                    <div className="mt-2.5 space-y-2">
                       <p className="text-xs text-gray-300">{driverAnalysis.today.rationale}</p>
                       <div className="flex items-center gap-2">
-                        <ConfidenceBadge confidence={driverAnalysis.today.confidence} />
+                        <span className="text-[12px] text-gray-500">Dominant:</span>
+                        <span className="text-[12px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.today.primaryBucket]}</span>
                         {driverAnalysis.today.secondaryBucket && (
-                          <span className="text-[11px] text-gray-500">
-                            Secondary: {BUCKET_LABELS[driverAnalysis.today.secondaryBucket]}
-                          </span>
+                          <>
+                            <span className="text-[12px] text-gray-600">·</span>
+                            <span className="text-[12px] text-gray-500">Secondary:</span>
+                            <span className="text-[12px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.today.secondaryBucket]}</span>
+                          </>
                         )}
                       </div>
                     </div>
@@ -309,10 +365,10 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                     <div className="space-y-2">
                       <p className="text-xs text-gray-300 leading-relaxed">{driverAnalysis.past.summary}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-gray-500">Dominant:</span>
-                        <span className="text-[11px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.past.dominantBucket]}</span>
+                        <span className="text-[12px] text-gray-500">Dominant:</span>
+                        <span className="text-[12px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.past.dominantBucket]}</span>
                       </div>
-                      <p className="text-[11px] text-gray-500 italic">{driverAnalysis.past.evolution}</p>
+                      <p className="text-[12px] text-gray-500 italic">{driverAnalysis.past.evolution}</p>
                     </div>
                   ) : (
                     <>
@@ -331,8 +387,8 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                     <div className="space-y-2">
                       <p className="text-xs text-gray-300 leading-relaxed">{driverAnalysis.forward.summary}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-gray-500">Expected:</span>
-                        <span className="text-[11px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.forward.expectedBucket]}</span>
+                        <span className="text-[12px] text-gray-500">Expected:</span>
+                        <span className="text-[12px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.forward.expectedBucket]}</span>
                       </div>
                       {driverAnalysis.forward.keyFactors.length > 0 && (
                         <ul className="space-y-1">
@@ -393,35 +449,28 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Upcoming Catalysts ── */}
           <div key="catalysts">
-            <DraggablePanel title="Upcoming Catalysts" subtitle="next 60 days">
+            <DraggablePanel title="Upcoming Catalysts" subtitle="next 60 days" headerRight={<StepRefreshButton ticker={ticker} step="catalysts" />}>
               {catalysts.length > 0 ? (
                 <>
                   <CatalystTimelineReal catalysts={catalysts} />
-                  <div className="space-y-3">
-                    {(['thesis', 'macro', 'sector', 'sentiment', 'fundamental'] as const).map((cat) => {
-                      const items = catalysts.filter((c) => c.category === cat);
-                      if (!items.length) return null;
-                      const tagLabel = (cat.charAt(0).toUpperCase() + cat.slice(1)) as BucketTagType;
+                  <div className="space-y-1.5">
+                    {[...catalysts].sort((a, b) => a.date.localeCompare(b.date)).map((c, i) => {
+                      const mmdd = c.date.length >= 10
+                        ? `${c.date.slice(5, 7)}/${c.date.slice(8, 10)}`
+                        : c.date;
+                      const daysUntil = Math.ceil(
+                        (new Date(c.date).getTime() - Date.now()) / 86_400_000,
+                      );
+                      const daysLabel = daysUntil >= 0 ? `${daysUntil}d` : `${Math.abs(daysUntil)}d ago`;
+                      const tagLabel = (c.category.charAt(0).toUpperCase() + c.category.slice(1)) as BucketTagType;
                       return (
-                        <div key={cat}>
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <BucketTag bucket={tagLabel} />
-                            <span className="text-[11px] text-gray-500">{items.length} event{items.length > 1 ? 's' : ''}</span>
+                        <div key={i} className="flex items-start gap-2">
+                          <BucketTag bucket={tagLabel} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-300">{c.description}</p>
+                            <p className="text-[12px] text-gray-500 italic mt-0.5">{c.impactHypothesis}</p>
                           </div>
-                          <div className="space-y-1.5 ml-1">
-                            {items.map((c, i) => (
-                              <div key={i} className="flex items-start gap-2">
-                                <span className="text-[11px] font-mono text-gray-500 shrink-0 w-16">{c.date}</span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs text-gray-300">{c.description}</p>
-                                  <p className="text-[11px] text-gray-500 italic mt-0.5">{c.impactHypothesis}</p>
-                                </div>
-                                {c.thesisRelevance && (
-                                  <span className="text-[10px] text-violet-400 border border-violet-800 bg-violet-950 rounded px-1 py-px shrink-0">thesis</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          <span className="text-[12px] font-mono text-gray-500 shrink-0">{mmdd} — {daysLabel}</span>
                         </div>
                       );
                     })}
@@ -489,11 +538,13 @@ function DraggablePanel({
   title,
   subtitle,
   badge,
+  headerRight,
   children,
 }: {
   title: string;
   subtitle?: string;
   badge?: string;
+  headerRight?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -507,6 +558,8 @@ function DraggablePanel({
             {badge}
           </span>
         )}
+        {headerRight && !badge && <span className="ml-auto" />}
+        {headerRight && <span className={badge ? 'ml-1.5' : ''}>{headerRight}</span>}
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {children}
@@ -544,7 +597,7 @@ function SentimentBar({ label, score }: { label: string; score: number | null })
   const isPositive = score >= 0;
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] text-gray-500 w-16 shrink-0">{label}</span>
+      <span className="text-[12px] text-gray-500 w-16 shrink-0">{label}</span>
       <div className="flex-1 h-3 bg-gray-800 rounded-sm relative overflow-hidden">
         <div className="absolute top-0 bottom-0 w-px bg-gray-700" style={{ left: '50%' }} />
         {isPositive ? (
@@ -559,7 +612,7 @@ function SentimentBar({ label, score }: { label: string; score: number | null })
           />
         )}
       </div>
-      <span className={`text-[11px] font-mono w-8 text-right ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+      <span className={`text-[12px] font-mono w-8 text-right ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
         {score >= 0 ? '+' : ''}{score.toFixed(1)}
       </span>
     </div>
@@ -577,7 +630,7 @@ const CONFIDENCE_STYLES: Record<string, string> = {
 function ConfidenceBadge({ confidence }: { confidence: BucketConfidence }) {
   const style = CONFIDENCE_STYLES[confidence] ?? CONFIDENCE_STYLES.medium;
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-px rounded border ${style}`}>
+    <span className={`text-[12px] font-semibold px-1.5 py-px rounded border ${style}`}>
       {confidence} confidence
     </span>
   );
@@ -626,18 +679,18 @@ function CatalystTimelineReal({ catalysts }: { catalysts: Catalyst[] }) {
               {/* Tooltip */}
               <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 shadow-xl pointer-events-none z-20">
                 <p className="text-xs font-medium text-gray-200 leading-snug">{c.description}</p>
-                <p className="text-[10px] text-gray-500 mt-1">{c.date} · {c.category}</p>
+                <p className="text-[12px] text-gray-500 mt-1">{c.date} · {c.category}</p>
               </div>
             </div>
           );
         })}
       </div>
       <div className="relative h-4 mt-1">
-        <span className="absolute left-0 text-[11px] text-gray-400 font-medium">Today</span>
-        <span className="absolute text-[11px] text-gray-500 -translate-x-1/2" style={{ left: '25%' }}>+15d</span>
-        <span className="absolute text-[11px] text-gray-500 -translate-x-1/2" style={{ left: '50%' }}>+30d</span>
-        <span className="absolute text-[11px] text-gray-500 -translate-x-1/2" style={{ left: '75%' }}>+45d</span>
-        <span className="absolute right-0 text-[11px] text-gray-400 font-medium">+60d</span>
+        <span className="absolute left-0 text-[12px] text-gray-400 font-medium">Today</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '25%' }}>+15d</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '50%' }}>+30d</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '75%' }}>+45d</span>
+        <span className="absolute right-0 text-[12px] text-gray-400 font-medium">+60d</span>
       </div>
     </div>
   );
@@ -791,7 +844,7 @@ function PeerCompTable({ peerRows }: { peerRows: PeerRow[] }) {
       return (
         <span className={textClass}>
           {row.peRatio.toFixed(1)}x
-          <span className="ml-0.5 text-[10px] text-gray-600 font-normal">TTM</span>
+          <span className="ml-0.5 text-[12px] text-gray-600 font-normal">TTM</span>
         </span>
       );
     }
@@ -1040,7 +1093,7 @@ function FundamentalsPanel({
   const toggleBtn = (label: string, active: boolean, onClick: () => void) => (
     <button
       onClick={onClick}
-      className={`px-2.5 py-0.5 text-[11px] font-mono rounded transition-colors ${
+      className={`px-2.5 py-0.5 text-[12px] font-mono rounded transition-colors ${
         active ? 'bg-gray-700 text-gray-200 font-semibold' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
       }`}
     >
@@ -1085,9 +1138,9 @@ function QuarterlyTable({
     return `Q${q}'${parts[0].slice(2)}`;
   };
 
-  // income is newest-first from FMP — take 8 historical quarters
-  const histActuals = income.slice(0, 8);
-  const cfActuals = cashFlow.slice(0, 8);
+  // income is newest-first from FMP — take 4 most recent historical quarters
+  const histActuals = income.slice(0, 4);
+  const cfActuals = cashFlow.slice(0, 4);
 
   // Filter estimates to only future quarters (after the latest actual)
   const latestActualDate = income[0]?.date ?? '';
@@ -1170,7 +1223,7 @@ function QuarterlyTable({
                   >
                     {val != null ? (isEps ? `$${val.toFixed(2)}` : fmtB(val)) : '—'}
                     {change && (
-                      <span className={`ml-0.5 text-[11px] ${change.positive ? 'text-emerald-500' : 'text-red-500'}`}>
+                      <span className={`ml-0.5 text-[12px] ${change.positive ? 'text-emerald-500' : 'text-red-500'}`}>
                         ({change.text})
                       </span>
                     )}
@@ -1304,7 +1357,7 @@ function AnnualTable({
                   >
                     {val != null ? (isEps ? `$${val.toFixed(2)}` : fmtB(val)) : '—'}
                     {change && (
-                      <span className={`ml-0.5 text-[11px] ${change.positive ? 'text-emerald-500' : 'text-red-500'}`}>
+                      <span className={`ml-0.5 text-[12px] ${change.positive ? 'text-emerald-500' : 'text-red-500'}`}>
                         ({change.text})
                       </span>
                     )}

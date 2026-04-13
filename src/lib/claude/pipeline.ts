@@ -74,6 +74,8 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       cashFlow: fundamentalsBlob.cashFlow,
       balanceSheet: fundamentalsBlob.balanceSheet,
       keyMetrics: fundamentalsBlob.keyMetrics,
+      livePrice: quote.price ?? null,
+      forwardEps: fundamentalsBlob.analystEstimates[0]?.epsAvg ?? null,
     });
     fundamentalOutlook = await callClaude<Record<string, string>>({
       system: prompt.system,

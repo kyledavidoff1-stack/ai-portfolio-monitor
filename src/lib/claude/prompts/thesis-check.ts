@@ -15,7 +15,7 @@ export function buildThesisCheckPrompt(params: {
   const { ticker, thesis, newsSentiment, fundamentalOutlook, sectorRelative } = params;
 
   const sentimentContext = newsSentiment
-    ? `News & Sentiment: ${newsSentiment.sentiment} (score: ${newsSentiment.score.toFixed(2)})\n${newsSentiment.summary}`
+    ? `News & Sentiment: ${newsSentiment.overall_tone ?? newsSentiment.sentiment} (score: ${newsSentiment.score.toFixed(2)})\n${newsSentiment.today_summary ?? newsSentiment.summary}`
     : 'News: No data';
 
   const fundamentalContext = fundamentalOutlook
