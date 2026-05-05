@@ -1,9 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { GridLayout, useContainerWidth, Layout, LayoutItem } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+import { useState, useCallback, useEffect } from 'react';
 import { HoldingsList } from './HoldingsList';
 import { CorrelationHeatmap } from './CorrelationHeatmap';
 import { useScanState } from './ScanContext';
@@ -13,37 +10,6 @@ import { QuoteData } from '@/lib/fmp/quotes';
 import type { CorrelationMatrix } from '@/lib/analysis/correlation';
 import { BUCKET_LABELS } from '@/lib/config/constants';
 
-const STORAGE_KEY = 'pm:dashboard-layout';
-const ROW_HEIGHT = 50;
-const MARGIN: [number, number] = [12, 12];
-
-const DEFAULT_LAYOUT: LayoutItem[] = [
-  // Row 1: Portfolio Drivers (left) + Thesis Tracker (right), ~50/50
-  { i: 'drivers',   x: 0, y: 0,  w: 6,  h: 6,  minW: 3, minH: 3 },
-  { i: 'thesis',    x: 6, y: 0,  w: 6,  h: 6,  minW: 3, minH: 3 },
-  // Row 2: Upcoming Catalysts full width
-  { i: 'catalysts', x: 0, y: 6,  w: 12, h: 4,  minW: 4, minH: 2 },
-  // Row 3: Holdings (~60%) + Correlation Heatmap (~40%)
-  { i: 'holdings',  x: 0, y: 10, w: 7,  h: 12, minW: 4, minH: 5 },
-  { i: 'heatmap',   x: 7, y: 10, w: 5,  h: 12, minW: 3, minH: 3 },
-];
-
-function loadLayout(): LayoutItem[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return DEFAULT_LAYOUT;
-    const parsed = JSON.parse(saved) as LayoutItem[];
-    const savedKeys = new Set(parsed.map((l) => l.i));
-    const missing = DEFAULT_LAYOUT.filter((d) => !savedKeys.has(d.i));
-    return [...parsed, ...missing];
-  } catch {
-    return DEFAULT_LAYOUT;
-  }
-}
-
-function saveLayout(layout: Layout) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch {}
-}
 
 export interface DraggableDashboardProps {
   holdings: Holding[];
@@ -73,14 +39,12 @@ export default function DraggableDashboard({
   latestScans = {},
   anomalies = [],
 }: DraggableDashboardProps) {
-  const [layout, setLayout] = useState<LayoutItem[]>(loadLayout);
   const { scanState } = useScanState();
-  const { width, containerRef, mounted } = useContainerWidth();
 
-  const handleLayoutChange = useCallback((newLayout: Layout) => {
-    setLayout([...newLayout]);
-    saveLayout(newLayout);
-  }, []);
+  // Collapsible panels
+  const [catalystsCollapsed, toggleCatalysts] = useDashCollapse('catalysts', true);
+  const [holdingsCollapsed, toggleHoldings]   = useDashCollapse('holdings', false);
+  const [heatmapCollapsed, toggleHeatmap]     = useDashCollapse('heatmap', true);
 
   const scanComplete = scanState && !scanState.scanning && scanState.completedTickers.size > 0;
   const scanActive = scanState?.scanning;
@@ -89,7 +53,7 @@ export default function DraggableDashboard({
     : 0;
 
   return (
-    <div ref={containerRef}>
+    <div>
       {/* ── Scan progress bar ── */}
       {scanState && (scanActive || scanComplete) && (
         <div className="mb-3 bg-gray-900 border border-gray-800 rounded-lg px-4 py-2.5 flex items-center gap-3">
@@ -124,72 +88,73 @@ export default function DraggableDashboard({
         </div>
       )}
 
-      {mounted && (
-        <GridLayout
-          width={width}
-          layout={layout}
-          gridConfig={{
-            cols: 12,
-            rowHeight: ROW_HEIGHT,
-            margin: MARGIN,
-            containerPadding: [0, 0],
-          }}
-          dragConfig={{
-            enabled: true,
-            handle: '.panel-drag-handle',
-            threshold: 4,
-          }}
-          resizeConfig={{
-            enabled: true,
-            handles: ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'],
-          }}
-          onLayoutChange={handleLayoutChange}
-        >
-          {/* ── Holdings ── */}
-          <div key="holdings">
-            <div className="h-full bg-gray-900 border border-gray-800 rounded-lg flex flex-col overflow-hidden">
-              <div className="panel-drag-handle flex items-center justify-center h-6 border-b border-gray-800/50 cursor-grab active:cursor-grabbing select-none shrink-0">
-                <PanelGripIcon />
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 pt-2">
-                <HoldingsList holdings={holdings} quotes={quotes} scanState={scanState} latestScans={latestScans} anomalies={anomalies} />
-              </div>
-            </div>
-          </div>
+      <div className="grid grid-cols-12 gap-3">
+        {/* Row 1: Portfolio Drivers (left) + Thesis Tracker (right) */}
+        <div className="col-span-6">
+          <DraggablePanel title="Today's Portfolio Drivers">
+            <PortfolioDriversContent latestScans={latestScans} />
+          </DraggablePanel>
+        </div>
+        <div className="col-span-6">
+          <DraggablePanel title="Thesis Tracker">
+            <ThesisTrackerContent holdings={holdings} latestScans={latestScans} />
+          </DraggablePanel>
+        </div>
 
-          {/* ── Correlation Heatmap ── */}
-          <div key="heatmap">
-            <DraggablePanel title="Correlation Heatmap" subtitle="90-day rolling">
-              <CorrelationHeatmap data={correlationData} />
-            </DraggablePanel>
-          </div>
+        {/* Row 2: Upcoming Catalysts full width */}
+        <div className="col-span-12">
+          <DraggablePanel title="Upcoming Catalysts" subtitle="next 30 days across all holdings" collapsed={catalystsCollapsed} onToggle={toggleCatalysts}>
+            <PortfolioCatalystsContent latestScans={latestScans} />
+          </DraggablePanel>
+        </div>
 
-          {/* ── Portfolio Drivers ── */}
-          <div key="drivers">
-            <DraggablePanel title="Today's Portfolio Drivers">
-              <PortfolioDriversContent latestScans={latestScans} />
-            </DraggablePanel>
-          </div>
-
-          {/* ── Thesis Tracker ── */}
-          <div key="thesis">
-            <DraggablePanel title="Thesis Tracker">
-              <ThesisTrackerContent
-                holdings={holdings}
-                latestScans={latestScans}
-              />
-            </DraggablePanel>
-          </div>
-
-          {/* ── Upcoming Catalysts ── */}
-          <div key="catalysts">
-            <DraggablePanel title="Upcoming Catalysts" subtitle="next 30 days across all holdings">
-              <PortfolioCatalystsContent latestScans={latestScans} />
-            </DraggablePanel>
-          </div>
-        </GridLayout>
-      )}
+        {/* Row 3: Holdings + Correlation Heatmap */}
+        <div className="col-span-7">
+          <DraggablePanel title="Holdings" collapsed={holdingsCollapsed} onToggle={toggleHoldings}>
+            <HoldingsList holdings={holdings} quotes={quotes} scanState={scanState} latestScans={latestScans} anomalies={anomalies} />
+          </DraggablePanel>
+        </div>
+        <div className="col-span-5">
+          <DraggablePanel title="Correlation Heatmap" subtitle="90-day rolling" collapsed={heatmapCollapsed} onToggle={toggleHeatmap}>
+            <CorrelationHeatmap data={correlationData} />
+          </DraggablePanel>
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ── Collapse persistence ─────────────────────────────────────────────────���────
+
+const COLLAPSE_PREFIX = 'pm:dash-collapse:';
+
+function useDashCollapse(panelId: string, defaultCollapsed: boolean) {
+  const key = `${COLLAPSE_PREFIX}${panelId}`;
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) return saved === '1';
+    } catch {}
+    return defaultCollapsed;
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch {}
+  }, [key, collapsed]);
+
+  const toggle = useCallback(() => setCollapsed((c) => !c), []);
+  return [collapsed, toggle] as const;
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 14 14"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={`text-gray-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+    >
+      <path d="M5 3l4 4-4 4" />
+    </svg>
   );
 }
 
@@ -198,22 +163,38 @@ export default function DraggableDashboard({
 function DraggablePanel({
   title,
   subtitle,
+  collapsed,
+  onToggle,
   children,
 }: {
   title: string;
   subtitle?: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
   children: React.ReactNode;
 }) {
+  const isCollapsible = onToggle != null;
   return (
-    <div className="h-full bg-gray-900 border border-gray-800 rounded-lg flex flex-col overflow-hidden">
-      <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 cursor-grab active:cursor-grabbing select-none shrink-0">
+    <div className="bg-gray-900 border border-gray-800 rounded-lg flex flex-col">
+      <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 select-none shrink-0">
         <PanelGripIcon />
         <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">{title}</h3>
         {subtitle && <span className="text-[13px] text-gray-400">{subtitle}</span>}
+        {isCollapsible && (
+          <button
+            onClick={onToggle}
+            className="ml-auto p-1 rounded hover:bg-gray-800 transition-colors"
+            aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+          >
+            <ChevronIcon expanded={!collapsed} />
+          </button>
+        )}
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {children}
-      </div>
+      {!collapsed && (
+        <div className="p-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -328,12 +309,6 @@ function ThesisTrackerContent({
 
 // ── PortfolioDriversContent ───────────────────────────────────────────────────
 
-function truncateWords(text: string, max: number): string {
-  const words = text.split(/\s+/);
-  if (words.length <= max) return text;
-  return words.slice(0, max).join(' ') + '…';
-}
-
 const BUCKET_BAR_COLORS: Record<number, string> = {
   1: 'bg-indigo-400',
   2: 'bg-blue-500',
@@ -371,14 +346,13 @@ function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, 
   for (const s of scans) counts[s.bucketPrimary!]++;
   const total = scans.length;
 
-  // Top drivers
-  const topDrivers = scans
+  // Find an AI summary line from the highest-confidence scan
+  const topScan = scans
     .filter((s) => s.bucketRationale)
     .sort((a, b) => {
       const confOrder = { high: 0, medium: 1, low: 2 };
       return (confOrder[a.bucketConfidence ?? 'low'] ?? 2) - (confOrder[b.bucketConfidence ?? 'low'] ?? 2);
-    })
-    .slice(0, 5);
+    })[0];
 
   return (
     <>
@@ -396,18 +370,8 @@ function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, 
           );
         })}
       </div>
-      {topDrivers.length > 0 && (
-        <div className="mt-3 space-y-2">
-          {topDrivers.map((s) => (
-            <div key={s.ticker} className="flex gap-2 items-start">
-              <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 pt-px w-12">{s.ticker}</span>
-              <span className="text-[12px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 shrink-0">
-                {BUCKET_LABELS[s.bucketPrimary!]}
-              </span>
-              <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-2">{truncateWords(s.bucketRationale!, 15)}</span>
-            </div>
-          ))}
-        </div>
+      {topScan?.bucketRationale && (
+        <p className="mt-3 text-[12px] text-gray-400 leading-relaxed line-clamp-2">{topScan.bucketRationale}</p>
       )}
     </>
   );
@@ -424,11 +388,21 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 function PortfolioCatalystsContent({ latestScans }: { latestScans: Record<string, AnalysisScan> }) {
-  // Aggregate all catalysts from all scans
+  // Aggregate catalysts: max 2 per company (highest impact first)
   const allCatalysts: Array<Catalyst & { ticker: string }> = [];
+  const impactOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
   for (const [ticker, scan] of Object.entries(latestScans)) {
-    if (scan.catalysts) {
-      for (const c of scan.catalysts) {
+    if (scan.catalysts && scan.catalysts.length > 0) {
+      // Sort by thesis relevance + category priority, take top 2
+      const sorted = [...scan.catalysts].sort((a, b) => {
+        if (a.thesisRelevance && !b.thesisRelevance) return -1;
+        if (!a.thesisRelevance && b.thesisRelevance) return 1;
+        // Prefer thesis/fundamental categories as higher impact
+        const catPriority: Record<string, number> = { thesis: 0, fundamental: 1, sector: 2, macro: 3, sentiment: 4 };
+        return (catPriority[a.category] ?? 5) - (catPriority[b.category] ?? 5);
+      });
+      for (const c of sorted.slice(0, 2)) {
         allCatalysts.push({ ...c, ticker });
       }
     }
@@ -447,23 +421,49 @@ function PortfolioCatalystsContent({ latestScans }: { latestScans: Record<string
     );
   }
 
-  // Sort by date, take next 30 days
+  // Filter to next 30 days
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = allCatalysts
-    .filter((c) => c.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 10);
+  const upcoming = allCatalysts.filter((c) => c.date >= today);
+
+  // Deduplicate: group by normalized description (first part before " - ") + date
+  // If the same event hits multiple tickers, merge them into one row
+  const deduped: Array<{ description: string; date: string; category: string; tickers: string[] }> = [];
+  const seen = new Map<string, number>(); // key -> index in deduped
+
+  for (const c of upcoming) {
+    const shortDesc = c.description.split(' - ')[0].trim().toLowerCase();
+    const key = `${c.date}::${shortDesc}`;
+    const existing = seen.get(key);
+    if (existing != null) {
+      if (!deduped[existing].tickers.includes(c.ticker)) {
+        deduped[existing].tickers.push(c.ticker);
+      }
+    } else {
+      seen.set(key, deduped.length);
+      deduped.push({
+        description: c.description.split(' - ')[0].trim(),
+        date: c.date,
+        category: c.category,
+        tickers: [c.ticker],
+      });
+    }
+  }
+
+  // Sort by date, limit total
+  const sorted = deduped.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10);
 
   return (
     <div className="space-y-2">
-      {upcoming.map((c, i) => {
+      {sorted.map((c, i) => {
         const daysUntil = Math.ceil((new Date(c.date).getTime() - Date.now()) / 86400000);
+        // Truncate to ~100 chars
+        const desc = c.description.length > 100 ? c.description.slice(0, 97) + '…' : c.description;
         return (
-          <div key={`${c.ticker}-${i}`} className="flex items-start gap-2">
+          <div key={i} className="flex items-center gap-2">
             <span className="text-[12px] font-mono text-gray-500 w-14 shrink-0">{c.date.slice(5)}</span>
-            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${CATEGORY_COLORS[c.category] ?? 'bg-gray-500'}`} />
-            <span className="text-[12px] font-mono font-semibold text-gray-200 w-12 shrink-0">{c.ticker}</span>
-            <span className="text-[12px] text-gray-400 leading-relaxed flex-1 line-clamp-1">{c.description}</span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${CATEGORY_COLORS[c.category] ?? 'bg-gray-500'}`} />
+            <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0">{c.tickers.join(', ')}</span>
+            <span className="text-[12px] text-gray-400 flex-1 truncate">{desc}</span>
             <span className="text-[12px] text-gray-600 shrink-0">{daysUntil}d</span>
           </div>
         );

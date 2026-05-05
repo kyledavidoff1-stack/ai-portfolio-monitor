@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GridLayout, useContainerWidth, Layout, LayoutItem } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -104,6 +104,16 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
   const [thesisModified, setThesisModified] = useState(false);
   const [thesisSaving, setThesisSaving]     = useState(false);
 
+  // Panel collapse state (persisted per ticker)
+  const [driverCollapsed, toggleDriver]         = usePanelCollapse(ticker, 'driver', true);
+  const [thesisCollapsed, toggleThesis]         = usePanelCollapse(ticker, 'thesis', true);
+  const [sentimentCollapsed, toggleSentiment]   = usePanelCollapse(ticker, 'sentiment', true);
+  const [sectorRelCollapsed, toggleSectorRel]   = usePanelCollapse(ticker, 'sectorrel', true);
+  const [catalystsCollapsed, toggleCatalysts]   = usePanelCollapse(ticker, 'catalysts', true);
+  const [metricsCollapsed, toggleMetrics]       = usePanelCollapse(ticker, '5numbers', true);
+  const [revenueCollapsed, toggleRevenue]       = usePanelCollapse(ticker, 'revenueflow', true);
+  const [fundCollapsed, toggleFund]             = usePanelCollapse(ticker, 'fundamentals', true);
+
   const handleLayoutChange = useCallback((newLayout: Layout) => {
     setLayout([...newLayout]);
     saveLayout(newLayout);
@@ -139,7 +149,20 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
         >
           {/* ── Today's Sentiment ── */}
           <div key="sentiment">
-            <DraggablePanel title="Today's Sentiment" badge={sentiment ? (sentiment.overall_tone ?? sentiment.sentiment) : undefined} headerRight={<StepRefreshButton ticker={ticker} step="news" />}>
+            <DraggablePanel
+              title="Today's Sentiment"
+              badge={sentiment ? (sentiment.overall_tone ?? sentiment.sentiment) : undefined}
+              headerRight={<StepRefreshButton ticker={ticker} step="news" />}
+              collapsed={sentimentCollapsed}
+              onToggle={toggleSentiment}
+              collapsedContent={
+                sentiment ? (
+                  <p className="text-xs text-gray-300 line-clamp-2">{sentiment.today_summary ?? sentiment.summary}</p>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">Run scan for sentiment</p>
+                )
+              }
+            >
               {sentiment ? (
                 <div className="space-y-3 overflow-y-auto max-h-[calc(100%-2rem)]">
                   {/* Summary */}
@@ -244,7 +267,25 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Thesis ── */}
           <div key="thesis">
-            <DraggablePanel title="Thesis" headerRight={<StepRefreshButton ticker={ticker} step="thesis" />}>
+            <DraggablePanel
+              title="Thesis"
+              headerRight={<StepRefreshButton ticker={ticker} step="thesis" />}
+              collapsed={thesisCollapsed}
+              onToggle={toggleThesis}
+              collapsedContent={
+                thesisCheck ? (
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${
+                      thesisCheck.status === 'confirmed' ? 'bg-emerald-400' :
+                      thesisCheck.status === 'challenged' ? 'bg-red-400' : 'bg-gray-500'
+                    }`} />
+                    <p className="text-xs text-gray-300 line-clamp-1">{thesisCheck.today.explanation}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">Set thesis and run scan</p>
+                )
+              }
+            >
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[13px] font-semibold text-gray-400 uppercase tracking-widest">
@@ -334,7 +375,26 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Driver Analysis ── */}
           <div key="driver">
-            <DraggablePanel title="Driver Analysis" headerRight={<StepRefreshButton ticker={ticker} step="bucket" />}>
+            <DraggablePanel
+              title="Driver Analysis"
+              headerRight={<StepRefreshButton ticker={ticker} step="bucket" />}
+              collapsed={driverCollapsed}
+              onToggle={toggleDriver}
+              collapsedContent={
+                <div>
+                  <BucketDots active={driverAnalysis?.today.primaryBucket ?? null} />
+                  {driverAnalysis?.today ? (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-[12px] text-gray-500">Dominant:</span>
+                      <span className="text-[12px] font-mono text-gray-300">{BUCKET_LABELS[driverAnalysis.today.primaryBucket]}</span>
+                      <span className="text-xs text-gray-400 ml-2 line-clamp-1">{driverAnalysis.today.rationale}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 italic mt-2">Run scan to identify drivers</p>
+                  )}
+                </div>
+              }
+            >
               <div className="divide-y divide-gray-800/50">
                 <TimeSection period="Today" label="Current drivers">
                   <BucketDots active={driverAnalysis?.today.primaryBucket ?? null} />
@@ -411,7 +471,18 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Competitive Landscape ── */}
           <div key="sectorrel">
-            <DraggablePanel title="Competitive Landscape">
+            <DraggablePanel
+              title="Competitive Landscape"
+              collapsed={sectorRelCollapsed}
+              onToggle={toggleSectorRel}
+              collapsedContent={
+                relativePerfData.length >= 2 ? (
+                  <SectorRelativeChart data={relativePerfData} intradayData={intradayPerfData} ticker={ticker} sectorEtf={sectorEtf} />
+                ) : (
+                  <p className="text-xs text-gray-500 italic">Loading performance data...</p>
+                )
+              }
+            >
               <div className="divide-y divide-gray-800/50">
 
                 <TimeSection period="Today" label="Relative performance">
@@ -449,7 +520,43 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Upcoming Catalysts ── */}
           <div key="catalysts">
-            <DraggablePanel title="Upcoming Catalysts" subtitle="next 60 days" headerRight={<StepRefreshButton ticker={ticker} step="catalysts" />}>
+            <DraggablePanel
+              title="Upcoming Catalysts"
+              subtitle="next 60 days"
+              headerRight={<StepRefreshButton ticker={ticker} step="catalysts" />}
+              collapsed={catalystsCollapsed}
+              onToggle={toggleCatalysts}
+              collapsedContent={
+                catalysts.length > 0 ? (
+                  <>
+                    <CatalystTimelineReal catalysts={catalysts} />
+                    <div className="space-y-1.5">
+                      {[...catalysts].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 2).map((c, i) => {
+                        const mmdd = c.date.length >= 10
+                          ? `${c.date.slice(5, 7)}/${c.date.slice(8, 10)}`
+                          : c.date;
+                        const daysUntil = Math.ceil(
+                          (new Date(c.date).getTime() - Date.now()) / 86_400_000,
+                        );
+                        const daysLabel = daysUntil >= 0 ? `${daysUntil}d` : `${Math.abs(daysUntil)}d ago`;
+                        const tagLabel = (c.category.charAt(0).toUpperCase() + c.category.slice(1)) as BucketTagType;
+                        return (
+                          <div key={i} className="flex items-start gap-2">
+                            <BucketTag bucket={tagLabel} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-300 line-clamp-1">{c.description}</p>
+                            </div>
+                            <span className="text-[12px] font-mono text-gray-500 shrink-0">{mmdd} — {daysLabel}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <CatalystTimeline />
+                )
+              }
+            >
               {catalysts.length > 0 ? (
                 <>
                   <CatalystTimelineReal catalysts={catalysts} />
@@ -493,7 +600,21 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
 
           {/* ── Metrics That Matter ── */}
           <div key="5numbers">
-            <DraggablePanel title="Metrics That Matter">
+            <DraggablePanel
+              title="Metrics That Matter"
+              collapsed={metricsCollapsed}
+              onToggle={toggleMetrics}
+              collapsedContent={
+                <div className="flex flex-wrap gap-3">
+                  {fiveCards.map((c) => (
+                    <span key={c.id} className="text-xs text-gray-300 font-mono">
+                      <span className="text-gray-500 mr-1">{c.label}:</span>
+                      {c.primary} <span className={c.secondaryPositive ? 'text-emerald-400' : c.secondaryPositive === false ? 'text-red-400' : 'text-gray-500'}>{c.secondary}</span> {c.secondaryLabel}
+                    </span>
+                  ))}
+                </div>
+              }
+            >
               <FiveNumbers cards={fiveCards} showHeader={false} />
             </DraggablePanel>
           </div>
@@ -511,24 +632,72 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 ) : (
                   <span className="text-[13px] text-gray-500 italic">placeholder</span>
                 )}
+                <button
+                  onClick={toggleRevenue}
+                  className="ml-auto p-1 rounded hover:bg-gray-800 transition-colors"
+                  aria-label={revenueCollapsed ? 'Expand panel' : 'Collapse panel'}
+                >
+                  <ChevronIcon expanded={!revenueCollapsed} />
+                </button>
               </div>
-              <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3 overflow-hidden">
-                <div className="flex-1 min-h-0">
-                  <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
+              {!revenueCollapsed && (
+                <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3 overflow-hidden">
+                  <div className="flex-1 min-h-0">
+                    <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
           {/* ── Fundamentals ── */}
           <div key="fundamentals">
-            <DraggablePanel title="Fundamentals">
+            <DraggablePanel
+              title="Fundamentals"
+              collapsed={fundCollapsed}
+              onToggle={toggleFund}
+              collapsedContent={null}
+            >
               <FundamentalsPanel income={income} cashFlow={cashFlow} balanceSheet={balanceSheet} annualIncome={annualIncome} annualCashFlow={annualCashFlow} analystEstimates={analystEstimates} quarterlyEstimates={quarterlyEstimates} />
             </DraggablePanel>
           </div>
         </GridLayout>
       )}
     </div>
+  );
+}
+
+// ── Collapse persistence ──────────────────────────────────────────────────────
+
+const COLLAPSE_STORAGE_PREFIX = 'pm:panel-collapse:';
+
+function usePanelCollapse(ticker: string, panelId: string, defaultCollapsed: boolean) {
+  const key = `${COLLAPSE_STORAGE_PREFIX}${ticker}:${panelId}`;
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) return saved === '1';
+    } catch {}
+    return defaultCollapsed;
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch {}
+  }, [key, collapsed]);
+
+  const toggle = useCallback(() => setCollapsed((c) => !c), []);
+  return [collapsed, toggle] as const;
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="14" height="14" viewBox="0 0 14 14"
+      fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={`text-gray-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+    >
+      <path d="M5 3l4 4-4 4" />
+    </svg>
   );
 }
 
@@ -539,30 +708,58 @@ function DraggablePanel({
   subtitle,
   badge,
   headerRight,
+  collapsed,
+  onToggle,
+  collapsedContent,
   children,
 }: {
   title: string;
   subtitle?: string;
   badge?: string;
   headerRight?: React.ReactNode;
+  collapsed?: boolean;
+  onToggle?: () => void;
+  collapsedContent?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const isCollapsible = onToggle != null;
   return (
     <div className="h-full bg-gray-900 border border-gray-800 rounded-lg flex flex-col overflow-hidden">
       <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 cursor-grab active:cursor-grabbing select-none shrink-0">
         <PanelGripIcon />
         <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">{title}</h3>
         {subtitle && <span className="text-[13px] text-gray-400">{subtitle}</span>}
-        {badge && (
+        {!isCollapsible && badge && (
           <span className="ml-auto text-[13px] text-gray-500 border border-gray-700 rounded px-1.5 py-px">
             {badge}
           </span>
         )}
-        {headerRight && !badge && <span className="ml-auto" />}
+        {isCollapsible && badge && (
+          <span className="text-[13px] text-gray-500 border border-gray-700 rounded px-1.5 py-px">
+            {badge}
+          </span>
+        )}
+        {headerRight && !badge && !isCollapsible && <span className="ml-auto" />}
         {headerRight && <span className={badge ? 'ml-1.5' : ''}>{headerRight}</span>}
+        {isCollapsible && (
+          <button
+            onClick={onToggle}
+            className="ml-auto p-1 rounded hover:bg-gray-800 transition-colors"
+            aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
+          >
+            <ChevronIcon expanded={!collapsed} />
+          </button>
+        )}
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        {children}
+      <div
+        className={`transition-all duration-200 ease-in-out overflow-hidden ${
+          collapsed ? 'flex-none' : 'flex-1 overflow-y-auto'
+        }`}
+        style={collapsed ? {} : {}}
+      >
+        <div className="p-4">
+          {collapsed ? collapsedContent : children}
+        </div>
       </div>
     </div>
   );
@@ -646,13 +843,33 @@ const CATEGORY_DOT_COLORS: Record<string, string> = {
   fundamental: 'bg-emerald-500',
 };
 
+const CATEGORY_HEX_COLORS: Record<string, string> = {
+  thesis:      '#8b5cf6',
+  macro:       '#818cf8',
+  sector:      '#3b82f6',
+  sentiment:   '#f59e0b',
+  fundamental: '#10b981',
+};
+
 function CatalystTimelineReal({ catalysts }: { catalysts: Catalyst[] }) {
-  const now = Date.now();
-  const sixtyDays = 60 * 24 * 60 * 60 * 1000;
+  // Use calendar days (midnight-to-midnight local) for consistent positioning
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const todayMs = todayMidnight.getTime();
+  const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+
+  // Group catalysts by date
+  const grouped = new Map<string, Catalyst[]>();
+  for (const c of catalysts) {
+    const existing = grouped.get(c.date) ?? [];
+    existing.push(c);
+    grouped.set(c.date, existing);
+  }
 
   return (
     <div className="mb-4">
-      <div className="relative h-8">
+      {/* Extra top padding so tooltips aren't clipped by the panel */}
+      <div className="relative h-8 mt-16">
         {/* Main line */}
         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-800 -translate-y-1/2" />
         {/* Tick marks */}
@@ -662,24 +879,64 @@ function CatalystTimelineReal({ catalysts }: { catalysts: Catalyst[] }) {
         {/* Start/end markers */}
         <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2 h-2 rounded-full bg-gray-500" />
         <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gray-700" />
-        {/* Catalyst dots */}
-        {catalysts.map((c, i) => {
-          const catDate = new Date(c.date).getTime();
-          const pct = Math.max(0, Math.min(100, ((catDate - now) / sixtyDays) * 100));
-          const dotColor = CATEGORY_DOT_COLORS[c.category] ?? 'bg-gray-500';
+        {/* Catalyst dots — grouped by date */}
+        {Array.from(grouped.entries()).map(([date, group]) => {
+          const [y, m, d] = date.split('-').map(Number);
+          const catDate = new Date(y, m - 1, d).getTime();
+          const pct = Math.max(0, Math.min(100, ((catDate - todayMs) / sixtyDaysMs) * 100));
+          const hasThesisRelevance = group.some((c) => c.thesisRelevance);
+
+          if (group.length === 1) {
+            // Single catalyst — solid dot
+            const c = group[0];
+            const dotColor = CATEGORY_DOT_COLORS[c.category] ?? 'bg-gray-500';
+            return (
+              <div
+                key={date}
+                className="group/dot absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
+                style={{ left: `${pct}%` }}
+              >
+                <div
+                  className={`rounded-full border-2 border-gray-950 w-4 h-4 ${dotColor} ${hasThesisRelevance ? 'ring-2 ring-violet-500/40' : ''} transition-transform group-hover/dot:scale-125`}
+                />
+                {/* Tooltip */}
+                <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none z-20">
+                  <p className="text-xs font-medium text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis">{c.description.split(' - ')[0]}</p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">{c.date} · {c.category}</p>
+                </div>
+              </div>
+            );
+          }
+
+          // Multiple catalysts on same day — split circle with conic gradient
+          const colors = group.map((c) => CATEGORY_HEX_COLORS[c.category] ?? '#6b7280');
+          const sliceAngle = 360 / colors.length;
+          const gradientStops = colors.map((color, idx) =>
+            `${color} ${idx * sliceAngle}deg ${(idx + 1) * sliceAngle}deg`
+          ).join(', ');
+
           return (
             <div
-              key={i}
+              key={date}
               className="group/dot absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
               style={{ left: `${pct}%` }}
             >
               <div
-                className={`rounded-full border-2 border-gray-950 w-4 h-4 ${dotColor} ${c.thesisRelevance ? 'ring-2 ring-violet-500/40' : ''} transition-transform group-hover/dot:scale-125`}
+                className={`rounded-full border-2 border-gray-950 w-4 h-4 ${hasThesisRelevance ? 'ring-2 ring-violet-500/40' : ''} transition-transform group-hover/dot:scale-125`}
+                style={{ background: `conic-gradient(${gradientStops})` }}
               />
-              {/* Tooltip */}
-              <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 shadow-xl pointer-events-none z-20">
-                <p className="text-xs font-medium text-gray-200 leading-snug">{c.description}</p>
-                <p className="text-[12px] text-gray-500 mt-1">{c.date} · {c.category}</p>
+              {/* Tooltip — lists each catalyst with its color */}
+              <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none z-20">
+                {group.map((c, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5 mb-1 last:mb-0">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full mt-0.5 shrink-0"
+                      style={{ backgroundColor: CATEGORY_HEX_COLORS[c.category] ?? '#6b7280' }}
+                    />
+                    <p className="text-xs font-medium text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis">{c.description.split(' - ')[0]}</p>
+                  </div>
+                ))}
+                <p className="text-[12px] text-gray-500 mt-0.5">{date}</p>
               </div>
             </div>
           );
