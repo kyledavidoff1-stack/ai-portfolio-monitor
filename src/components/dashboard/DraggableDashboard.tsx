@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Holding, AnalysisScan, RegimeSnapshot, AnomalyFlag, Catalyst } from '@/types';
 import { QuoteData } from '@/lib/fmp/quotes';
 import type { CorrelationMatrix } from '@/lib/analysis/correlation';
+import { BUCKET_LABELS } from '@/lib/config/constants';
 
 
 
@@ -313,15 +314,29 @@ function ThesisTrackerContent({
 
 // ── PortfolioDriversContent ───────────────────────────────────────────────────
 
-const BUCKET_DOT_COLORS: Record<number, string> = {
+const BUCKET_BAR_COLORS: Record<number, string> = {
   1: 'bg-indigo-400',
   2: 'bg-blue-500',
   3: 'bg-amber-500',
   4: 'bg-emerald-500',
 };
 
+const BUCKET_DOT_COLORS: Record<number, string> = BUCKET_BAR_COLORS;
+
 function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, AnalysisScan> }) {
-  const entries = Object.entries(latestScans)
+  const scans = Object.entries(latestScans).filter(([, s]) => s.bucketPrimary != null);
+
+  if (scans.length === 0) {
+    return <Placeholder text="Run scan to see what's driving your portfolio" />;
+  }
+
+  // Bucket distribution bar chart
+  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const [, s] of scans) counts[s.bucketPrimary!]++;
+  const total = scans.length;
+
+  // Per-company driver list
+  const entries = scans
     .filter(([, s]) => s.driverAnalysis?.today || s.bucketRationale)
     .map(([ticker, s]) => ({
       ticker,
@@ -329,26 +344,41 @@ function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, 
       rationale: s.driverAnalysis?.today?.rationale || s.bucketRationale || '',
     }));
 
-  if (entries.length === 0) {
-    return <Placeholder text="Run scan to see what's driving your portfolio" />;
-  }
-
   return (
-    <div className="space-y-1">
-      {entries.map((e) => (
-        <Link
-          key={e.ticker}
-          href={`/company/${e.ticker}`}
-          className="flex items-start gap-2 hover:bg-gray-800/50 rounded px-1 py-0.5 -mx-1 transition-colors"
-        >
-          <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 w-12 pt-px">
-            {e.ticker}
-          </span>
-          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${BUCKET_DOT_COLORS[e.bucket ?? 0] ?? 'bg-gray-600'}`} />
-          <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-1 flex-1">{e.rationale}</span>
-        </Link>
-      ))}
-    </div>
+    <>
+      <div className="space-y-2">
+        {([1, 2, 3, 4] as const).map((bucket) => {
+          const pct = total > 0 ? (counts[bucket] / total) * 100 : 0;
+          return (
+            <div key={bucket} className="flex items-center gap-2">
+              <span className="text-gray-400 text-xs w-28 shrink-0">{BUCKET_LABELS[bucket]}</span>
+              <div className="flex-1 h-1.5 bg-gray-800 rounded-full">
+                <div className={`${BUCKET_BAR_COLORS[bucket]} h-full rounded-full transition-all`} style={{ width: `${Math.max(pct, 2)}%` }} />
+              </div>
+              <span className="text-[12px] text-gray-500 w-8 text-right">{counts[bucket]}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {entries.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {entries.map((e) => (
+            <Link
+              key={e.ticker}
+              href={`/company/${e.ticker}`}
+              className="flex items-start gap-2 hover:bg-gray-800/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+            >
+              <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 w-12 pt-px">
+                {e.ticker}
+              </span>
+              <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${BUCKET_DOT_COLORS[e.bucket ?? 0] ?? 'bg-gray-600'}`} />
+              <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-1 flex-1">{e.rationale}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -428,7 +458,9 @@ function PortfolioCatalystsContent({ latestScans }: { latestScans: Record<string
   const sorted = deduped.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10);
 
   return (
-    <div className="space-y-2">
+    <div>
+      <CatalystTimeline catalysts={upcoming} />
+      <div className="space-y-2">
       {sorted.map((c, i) => {
         const daysUntil = Math.ceil((new Date(c.date).getTime() - Date.now()) / 86400000);
         // Truncate to ~100 chars
@@ -443,6 +475,119 @@ function PortfolioCatalystsContent({ latestScans }: { latestScans: Record<string
           </div>
         );
       })}
+      </div>
+    </div>
+  );
+}
+
+// ── CatalystTimeline ──────────────────────────────────────────────────────────
+
+const TIMELINE_DOT_COLORS: Record<string, string> = {
+  thesis:      'bg-violet-500',
+  macro:       'bg-indigo-400',
+  sector:      'bg-blue-500',
+  sentiment:   'bg-amber-500',
+  fundamental: 'bg-emerald-500',
+};
+
+const TIMELINE_HEX_COLORS: Record<string, string> = {
+  thesis:      '#8b5cf6',
+  macro:       '#818cf8',
+  sector:      '#3b82f6',
+  sentiment:   '#f59e0b',
+  fundamental: '#10b981',
+};
+
+function CatalystTimeline({ catalysts }: { catalysts: Array<Catalyst & { ticker: string }> }) {
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const todayMs = todayMidnight.getTime();
+  const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+
+  // Group by date
+  const grouped = new Map<string, Array<Catalyst & { ticker: string }>>();
+  for (const c of catalysts) {
+    const existing = grouped.get(c.date) ?? [];
+    existing.push(c);
+    grouped.set(c.date, existing);
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="relative h-8 mt-10">
+        {/* Main line */}
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-800 -translate-y-1/2" />
+        {/* Tick marks */}
+        {[25, 50, 75].map((pct) => (
+          <div key={pct} className="absolute top-1/2 -translate-y-1/2 w-px h-5 bg-gray-700" style={{ left: `${pct}%` }} />
+        ))}
+        {/* Start/end markers */}
+        <div className="absolute top-1/2 left-0 -translate-y-1/2 w-2 h-2 rounded-full bg-gray-500" />
+        <div className="absolute top-1/2 right-0 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gray-700" />
+        {/* Catalyst dots */}
+        {Array.from(grouped.entries()).map(([date, group]) => {
+          const [y, m, d] = date.split('-').map(Number);
+          const catDate = new Date(y, m - 1, d).getTime();
+          const pct = Math.max(0, Math.min(100, ((catDate - todayMs) / sixtyDaysMs) * 100));
+
+          if (group.length === 1) {
+            const c = group[0];
+            const dotColor = TIMELINE_DOT_COLORS[c.category] ?? 'bg-gray-500';
+            return (
+              <div
+                key={date}
+                className="group/dot absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
+                style={{ left: `${pct}%` }}
+              >
+                <div className={`rounded-full border-2 border-gray-950 w-4 h-4 ${dotColor} transition-transform group-hover/dot:scale-125`} />
+                <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none z-20">
+                  <p className="text-xs font-medium text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis">{c.ticker}: {c.description.split(' - ')[0]}</p>
+                  <p className="text-[12px] text-gray-500 mt-0.5">{c.date} · {c.category}</p>
+                </div>
+              </div>
+            );
+          }
+
+          // Multiple catalysts on same day
+          const colors = group.map((c) => TIMELINE_HEX_COLORS[c.category] ?? '#6b7280');
+          const sliceAngle = 360 / colors.length;
+          const gradientStops = colors.map((color, idx) =>
+            `${color} ${idx * sliceAngle}deg ${(idx + 1) * sliceAngle}deg`
+          ).join(', ');
+
+          return (
+            <div
+              key={date}
+              className="group/dot absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10"
+              style={{ left: `${pct}%` }}
+            >
+              <div
+                className="rounded-full border-2 border-gray-950 w-4 h-4 transition-transform group-hover/dot:scale-125"
+                style={{ background: `conic-gradient(${gradientStops})` }}
+              />
+              <div className="hidden group-hover/dot:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none z-20">
+                {group.map((c, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5 mb-1 last:mb-0">
+                    <span
+                      className="inline-block w-2 h-2 rounded-full mt-0.5 shrink-0"
+                      style={{ backgroundColor: TIMELINE_HEX_COLORS[c.category] ?? '#6b7280' }}
+                    />
+                    <p className="text-xs font-medium text-gray-200 whitespace-nowrap overflow-hidden text-ellipsis">{c.ticker}: {c.description.split(' - ')[0]}</p>
+                  </div>
+                ))}
+                <p className="text-[12px] text-gray-500 mt-0.5">{date}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="relative h-4 mt-1">
+        <span className="absolute left-0 text-[12px] text-gray-400 font-medium">Today</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '25%' }}>+15d</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '50%' }}>+30d</span>
+        <span className="absolute text-[12px] text-gray-500 -translate-x-1/2" style={{ left: '75%' }}>+45d</span>
+        <span className="absolute right-0 text-[12px] text-gray-400 font-medium">+60d</span>
+      </div>
     </div>
   );
 }
