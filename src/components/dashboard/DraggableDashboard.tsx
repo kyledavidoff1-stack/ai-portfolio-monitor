@@ -42,9 +42,9 @@ export default function DraggableDashboard({
   const { scanState } = useScanState();
 
   // Collapsible panels
-  const [catalystsCollapsed, toggleCatalysts] = useDashCollapse('catalysts', true);
+  const [catalystsCollapsed, toggleCatalysts] = useDashCollapse('catalysts', false);
   const [holdingsCollapsed, toggleHoldings]   = useDashCollapse('holdings', false);
-  const [heatmapCollapsed, toggleHeatmap]     = useDashCollapse('heatmap', true);
+  const [heatmapCollapsed, toggleHeatmap]     = useDashCollapse('heatmap', false);
 
   const scanComplete = scanState && !scanState.scanning && scanState.completedTickers.size > 0;
   const scanActive = scanState?.scanning;
@@ -176,7 +176,7 @@ function DraggablePanel({
   const isCollapsible = onToggle != null;
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-lg flex flex-col">
-      <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 select-none shrink-0">
+      <div className={`panel-drag-handle flex items-center gap-2 px-4 h-9 ${collapsed ? '' : 'border-b border-gray-800/60'} select-none shrink-0`}>
         <PanelGripIcon />
         <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">{title}</h3>
         {subtitle && <span className="text-[13px] text-gray-400">{subtitle}</span>}
@@ -190,11 +190,15 @@ function DraggablePanel({
           </button>
         )}
       </div>
-      {!collapsed && (
-        <div className="p-4">
-          {children}
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+      }`}>
+        <div className="overflow-hidden">
+          <div className="p-4">
+            {children}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -105,14 +105,14 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
   const [thesisSaving, setThesisSaving]     = useState(false);
 
   // Panel collapse state (persisted per ticker)
-  const [driverCollapsed, toggleDriver]         = usePanelCollapse(ticker, 'driver', true);
-  const [thesisCollapsed, toggleThesis]         = usePanelCollapse(ticker, 'thesis', true);
-  const [sentimentCollapsed, toggleSentiment]   = usePanelCollapse(ticker, 'sentiment', true);
-  const [sectorRelCollapsed, toggleSectorRel]   = usePanelCollapse(ticker, 'sectorrel', true);
-  const [catalystsCollapsed, toggleCatalysts]   = usePanelCollapse(ticker, 'catalysts', true);
-  const [metricsCollapsed, toggleMetrics]       = usePanelCollapse(ticker, '5numbers', true);
-  const [revenueCollapsed, toggleRevenue]       = usePanelCollapse(ticker, 'revenueflow', true);
-  const [fundCollapsed, toggleFund]             = usePanelCollapse(ticker, 'fundamentals', true);
+  const [driverCollapsed, toggleDriver]         = usePanelCollapse(ticker, 'driver', false);
+  const [thesisCollapsed, toggleThesis]         = usePanelCollapse(ticker, 'thesis', false);
+  const [sentimentCollapsed, toggleSentiment]   = usePanelCollapse(ticker, 'sentiment', false);
+  const [sectorRelCollapsed, toggleSectorRel]   = usePanelCollapse(ticker, 'sectorrel', false);
+  const [catalystsCollapsed, toggleCatalysts]   = usePanelCollapse(ticker, 'catalysts', false);
+  const [metricsCollapsed, toggleMetrics]       = usePanelCollapse(ticker, '5numbers', false);
+  const [revenueCollapsed, toggleRevenue]       = usePanelCollapse(ticker, 'revenueflow', false);
+  const [fundCollapsed, toggleFund]             = usePanelCollapse(ticker, 'fundamentals', false);
 
   const handleLayoutChange = useCallback((newLayout: Layout) => {
     setLayout([...newLayout]);
@@ -539,7 +539,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                           (new Date(c.date).getTime() - Date.now()) / 86_400_000,
                         );
                         const daysLabel = daysUntil >= 0 ? `${daysUntil}d` : `${Math.abs(daysUntil)}d ago`;
-                        const tagLabel = (c.category.charAt(0).toUpperCase() + c.category.slice(1)) as BucketTagType;
+                        const tagLabel = c.category.charAt(0).toUpperCase() + c.category.slice(1);
                         return (
                           <div key={i} className="flex items-start gap-2">
                             <BucketTag bucket={tagLabel} />
@@ -569,7 +569,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                         (new Date(c.date).getTime() - Date.now()) / 86_400_000,
                       );
                       const daysLabel = daysUntil >= 0 ? `${daysUntil}d` : `${Math.abs(daysUntil)}d ago`;
-                      const tagLabel = (c.category.charAt(0).toUpperCase() + c.category.slice(1)) as BucketTagType;
+                      const tagLabel = c.category.charAt(0).toUpperCase() + c.category.slice(1);
                       return (
                         <div key={i} className="flex items-start gap-2">
                           <BucketTag bucket={tagLabel} />
@@ -622,7 +622,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
           {/* ── Revenue Flow (Sankey) — inline panel for proper flex sizing ── */}
           <div key="revenueflow">
             <div className="h-full bg-gray-900 border border-gray-800 rounded-lg flex flex-col overflow-hidden">
-              <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 cursor-grab active:cursor-grabbing select-none shrink-0">
+              <div className={`panel-drag-handle flex items-center gap-2 px-4 h-9 ${revenueCollapsed ? '' : 'border-b border-gray-800/60'} cursor-grab active:cursor-grabbing select-none shrink-0`}>
                 <PanelGripIcon />
                 <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">Revenue Flow</h3>
                 {income.length > 0 ? (
@@ -640,13 +640,17 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                   <ChevronIcon expanded={!revenueCollapsed} />
                 </button>
               </div>
-              {!revenueCollapsed && (
-                <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3 overflow-hidden">
-                  <div className="flex-1 min-h-0">
-                    <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
+              <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+                revenueCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+              }`}>
+                <div className="overflow-hidden">
+                  <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3">
+                    <div className="flex-1 min-h-0">
+                      <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -725,7 +729,7 @@ function DraggablePanel({
   const isCollapsible = onToggle != null;
   return (
     <div className="h-full bg-gray-900 border border-gray-800 rounded-lg flex flex-col overflow-hidden">
-      <div className="panel-drag-handle flex items-center gap-2 px-4 h-9 border-b border-gray-800/60 cursor-grab active:cursor-grabbing select-none shrink-0">
+      <div className={`panel-drag-handle flex items-center gap-2 px-4 h-9 ${collapsed ? '' : 'border-b border-gray-800/60'} cursor-grab active:cursor-grabbing select-none shrink-0`}>
         <PanelGripIcon />
         <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">{title}</h3>
         {subtitle && <span className="text-[13px] text-gray-400">{subtitle}</span>}
@@ -751,14 +755,13 @@ function DraggablePanel({
           </button>
         )}
       </div>
-      <div
-        className={`transition-all duration-200 ease-in-out overflow-hidden ${
-          collapsed ? 'flex-none' : 'flex-1 overflow-y-auto'
-        }`}
-        style={collapsed ? {} : {}}
-      >
-        <div className="p-4">
-          {collapsed ? collapsedContent : children}
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+      }`}>
+        <div className="overflow-hidden">
+          <div className="p-4">
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -981,19 +984,18 @@ function BucketDots({ active }: { active: 1 | 2 | 3 | 4 | null }) {
 
 // ── Bucket tags ────────────────────────────────────────────────────────────────
 
-type BucketTagType = 'Macro' | 'Sector' | 'Sentiment' | 'Fundamental' | 'Thesis';
-
 // Full literal strings for Tailwind JIT scanner
-const BUCKET_TAG_STYLES = {
+const BUCKET_TAG_STYLES: Record<string, { bg: string; text: string; border: string }> = {
   Macro:       { bg: 'bg-indigo-950',  text: 'text-indigo-300',  border: 'border-indigo-800'  },
   Sector:      { bg: 'bg-blue-950',    text: 'text-blue-400',    border: 'border-blue-800'    },
   Sentiment:   { bg: 'bg-amber-950',   text: 'text-amber-400',   border: 'border-amber-800'   },
   Fundamental: { bg: 'bg-emerald-950', text: 'text-emerald-400', border: 'border-emerald-800' },
   Thesis:      { bg: 'bg-violet-950',  text: 'text-violet-300',  border: 'border-violet-700'  },
-} as const;
+  default:     { bg: 'bg-gray-800',    text: 'text-gray-400',    border: 'border-gray-700'    },
+};
 
-function BucketTag({ bucket }: { bucket: BucketTagType }) {
-  const s = BUCKET_TAG_STYLES[bucket];
+function BucketTag({ bucket }: { bucket: string }) {
+  const s = BUCKET_TAG_STYLES[bucket] ?? BUCKET_TAG_STYLES['default'];
   return (
     <span className={`text-[13px] font-semibold px-1.5 py-px rounded border ${s.bg} ${s.text} ${s.border}`}>
       {bucket}
@@ -1004,15 +1006,15 @@ function BucketTag({ bucket }: { bucket: BucketTagType }) {
 // ── Catalyst timeline ──────────────────────────────────────────────────────────
 
 // Full literal strings for Tailwind JIT scanner
-const BUCKET_DOT_COLORS = {
+const BUCKET_DOT_COLORS: Record<string, string> = {
   Macro:       'bg-indigo-400',
   Sector:      'bg-blue-500',
   Sentiment:   'bg-amber-500',
   Fundamental: 'bg-emerald-500',
   Thesis:      'bg-violet-500',
-} as const;
+};
 
-const GHOST_DOTS: Array<{ pct: number; bucket: BucketTagType; prominent?: boolean }> = [
+const GHOST_DOTS: Array<{ pct: number; bucket: string; prominent?: boolean }> = [
   { pct: 9,  bucket: 'Thesis',      prominent: true },
   { pct: 28, bucket: 'Fundamental'                  },
   { pct: 47, bucket: 'Macro'                        },
@@ -1059,7 +1061,7 @@ function CatalystTimeline() {
 
 // ── CatalystCategorySection ────────────────────────────────────────────────────
 
-function CatalystCategorySection({ bucket }: { bucket: BucketTagType }) {
+function CatalystCategorySection({ bucket }: { bucket: string }) {
   return (
     <div className="flex items-center gap-3">
       <BucketTag bucket={bucket} />
