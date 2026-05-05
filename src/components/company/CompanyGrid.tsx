@@ -640,10 +640,10 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                   <ChevronIcon expanded={!revenueCollapsed} />
                 </button>
               </div>
-              <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+              <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out flex-1 min-h-0 ${
                 revenueCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
               }`}>
-                <div className="overflow-hidden">
+                <div className={`min-h-0 ${revenueCollapsed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
                   <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3">
                     <div className="flex-1 min-h-0">
                       <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
@@ -755,10 +755,10 @@ function DraggablePanel({
           </button>
         )}
       </div>
-      <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
+      <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out flex-1 min-h-0 ${
         collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
       }`}>
-        <div className="overflow-hidden">
+        <div className={`min-h-0 ${collapsed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           <div className="p-4">
             {children}
           </div>

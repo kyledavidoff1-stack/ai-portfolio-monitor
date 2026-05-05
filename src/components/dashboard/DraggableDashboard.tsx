@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Holding, AnalysisScan, RegimeSnapshot, AnomalyFlag, Catalyst } from '@/types';
 import { QuoteData } from '@/lib/fmp/quotes';
 import type { CorrelationMatrix } from '@/lib/analysis/correlation';
-import { BUCKET_LABELS } from '@/lib/config/constants';
+
 
 
 export interface DraggableDashboardProps {
@@ -313,7 +313,7 @@ function ThesisTrackerContent({
 
 // ── PortfolioDriversContent ───────────────────────────────────────────────────
 
-const BUCKET_BAR_COLORS: Record<number, string> = {
+const BUCKET_DOT_COLORS: Record<number, string> = {
   1: 'bg-indigo-400',
   2: 'bg-blue-500',
   3: 'bg-amber-500',
@@ -321,63 +321,34 @@ const BUCKET_BAR_COLORS: Record<number, string> = {
 };
 
 function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, AnalysisScan> }) {
-  const scans = Object.values(latestScans).filter((s) => s.bucketPrimary != null);
-  if (scans.length === 0) {
-    return (
-      <>
-        <Placeholder text="Run scan to see what's driving your portfolio" />
-        <div className="mt-4 space-y-2 opacity-20">
-          {[
-            { label: 'Market Beta',  w: 'w-3/4', color: 'bg-indigo-400'  },
-            { label: 'Sector/Macro', w: 'w-1/2', color: 'bg-blue-500'    },
-            { label: 'Sentiment',    w: 'w-1/4', color: 'bg-amber-500'   },
-            { label: 'Fundamental',  w: 'w-1/3', color: 'bg-emerald-500' },
-          ].map((b) => (
-            <div key={b.label} className="flex items-center gap-2">
-              <span className="text-gray-400 text-xs w-28 shrink-0">{b.label}</span>
-              <div className="flex-1 h-1.5 bg-gray-800 rounded-full">
-                <div className={`${b.w} ${b.color} h-full rounded-full`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </>
-    );
+  const entries = Object.entries(latestScans)
+    .filter(([, s]) => s.driverAnalysis?.today || s.bucketRationale)
+    .map(([ticker, s]) => ({
+      ticker,
+      bucket: s.bucketPrimary,
+      rationale: s.driverAnalysis?.today?.rationale || s.bucketRationale || '',
+    }));
+
+  if (entries.length === 0) {
+    return <Placeholder text="Run scan to see what's driving your portfolio" />;
   }
 
-  // Count bucket distribution
-  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  for (const s of scans) counts[s.bucketPrimary!]++;
-  const total = scans.length;
-
-  // Find an AI summary line from the highest-confidence scan
-  const topScan = scans
-    .filter((s) => s.bucketRationale)
-    .sort((a, b) => {
-      const confOrder = { high: 0, medium: 1, low: 2 };
-      return (confOrder[a.bucketConfidence ?? 'low'] ?? 2) - (confOrder[b.bucketConfidence ?? 'low'] ?? 2);
-    })[0];
-
   return (
-    <>
-      <div className="space-y-2">
-        {([1, 2, 3, 4] as const).map((bucket) => {
-          const pct = total > 0 ? (counts[bucket] / total) * 100 : 0;
-          return (
-            <div key={bucket} className="flex items-center gap-2">
-              <span className="text-gray-400 text-xs w-28 shrink-0">{BUCKET_LABELS[bucket]}</span>
-              <div className="flex-1 h-1.5 bg-gray-800 rounded-full">
-                <div className={`${BUCKET_BAR_COLORS[bucket]} h-full rounded-full transition-all`} style={{ width: `${Math.max(pct, 2)}%` }} />
-              </div>
-              <span className="text-[12px] text-gray-500 w-8 text-right">{counts[bucket]}</span>
-            </div>
-          );
-        })}
-      </div>
-      {topScan?.bucketRationale && (
-        <p className="mt-3 text-[12px] text-gray-400 leading-relaxed line-clamp-2">{topScan.bucketRationale}</p>
-      )}
-    </>
+    <div className="space-y-1">
+      {entries.map((e) => (
+        <Link
+          key={e.ticker}
+          href={`/company/${e.ticker}`}
+          className="flex items-start gap-2 hover:bg-gray-800/50 rounded px-1 py-0.5 -mx-1 transition-colors"
+        >
+          <span className="text-[12px] font-mono font-semibold text-gray-200 shrink-0 w-12 pt-px">
+            {e.ticker}
+          </span>
+          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${BUCKET_DOT_COLORS[e.bucket ?? 0] ?? 'bg-gray-600'}`} />
+          <span className="text-[12px] text-gray-400 leading-relaxed line-clamp-1 flex-1">{e.rationale}</span>
+        </Link>
+      ))}
+    </div>
   );
 }
 
