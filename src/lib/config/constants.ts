@@ -24,10 +24,10 @@ export const BUCKET_LABELS: Record<number, string> = {
 };
 
 export const BUCKET_COLORS: Record<number, string> = {
-  1: 'bucket1',
-  2: 'bucket2',
-  3: 'bucket3',
-  4: 'bucket4',
+  1: 'bg-indigo-400',
+  2: 'bg-blue-500',
+  3: 'bg-amber-500',
+  4: 'bg-emerald-500',
 };
 
 // Regime labels

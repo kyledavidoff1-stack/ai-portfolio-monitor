@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Holding, AnalysisScan, RegimeSnapshot, AnomalyFlag, Catalyst } from '@/types';
 import { QuoteData } from '@/lib/fmp/quotes';
 import type { CorrelationMatrix } from '@/lib/analysis/correlation';
-import { BUCKET_LABELS } from '@/lib/config/constants';
+import { BUCKET_LABELS, BUCKET_COLORS } from '@/lib/config/constants';
 
 
 
@@ -314,14 +314,8 @@ function ThesisTrackerContent({
 
 // ── PortfolioDriversContent ───────────────────────────────────────────────────
 
-const BUCKET_BAR_COLORS: Record<number, string> = {
-  1: 'bg-indigo-400',
-  2: 'bg-blue-500',
-  3: 'bg-amber-500',
-  4: 'bg-emerald-500',
-};
-
-const BUCKET_DOT_COLORS: Record<number, string> = BUCKET_BAR_COLORS;
+const BUCKET_BAR_COLORS = BUCKET_COLORS;
+const BUCKET_DOT_COLORS = BUCKET_COLORS;
 
 function PortfolioDriversContent({ latestScans }: { latestScans: Record<string, AnalysisScan> }) {
   const scans = Object.entries(latestScans).filter(([, s]) => s.bucketPrimary != null);
@@ -388,7 +382,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   thesis: 'bg-violet-500',
   macro: 'bg-indigo-400',
   sector: 'bg-blue-500',
-  sentiment: 'bg-cyan-500',
+  sentiment: 'bg-amber-500',
   fundamental: 'bg-emerald-500',
 };
 

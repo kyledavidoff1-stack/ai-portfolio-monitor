@@ -7,6 +7,7 @@ import { QuoteData } from '@/lib/fmp/quotes';
 import type { ScanState } from './ScanButton';
 import { AddTickerModal } from './AddTickerModal';
 import { formatCurrency, fmtB } from '@/utils/format';
+import { BUCKET_COLORS } from '@/lib/config/constants';
 
 // ── Column system ───────────────────────────────────────────────────────────
 
@@ -102,12 +103,7 @@ function truncateWords(text: string, max: number): string {
   return words.slice(0, max).join(' ') + '…';
 }
 
-const BUCKET_DOT_COLORS: Record<number, string> = {
-  1: 'bg-indigo-400',
-  2: 'bg-blue-500',
-  3: 'bg-amber-500',
-  4: 'bg-emerald-500',
-};
+const BUCKET_DOT_COLORS = BUCKET_COLORS;
 
 const BUCKET_SHORT_LABELS: Record<number, string> = {
   1: 'Beta',

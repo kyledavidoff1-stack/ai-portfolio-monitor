@@ -101,8 +101,10 @@ interface SankeyChartProps {
 }
 
 export function SankeyChart({ nodes: propNodes, links: propLinks }: SankeyChartProps = {}) {
-  const NODES = propNodes ?? FALLBACK_NODES;
-  const LINKS = propLinks ?? FALLBACK_LINKS;
+  const hasPropData = propNodes && propLinks && propNodes.length > 0 && propLinks.length > 0;
+  const NODES = hasPropData ? propNodes : FALLBACK_NODES;
+  const LINKS = hasPropData ? propLinks : FALLBACK_LINKS;
+  const isPlaceholder = !hasPropData;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dims, setDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -147,12 +149,20 @@ export function SankeyChart({ nodes: propNodes, links: propLinks }: SankeyChartP
   const pathGen = useMemo(() => sankeyLinkHorizontal(), []);
 
   return (
-    <div ref={containerRef} className="w-full h-full">
+    <div ref={containerRef} className="w-full h-full relative">
+      {isPlaceholder && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+          <p className="text-xs text-gray-500 italic bg-gray-900/80 px-3 py-1.5 rounded">
+            Financial data unavailable — showing sample layout
+          </p>
+        </div>
+      )}
       {laidOutNodes.length > 0 && (
         <svg
           width={dims.w}
           height={dims.h}
           aria-label="Revenue flow Sankey diagram"
+          style={isPlaceholder ? { opacity: 0.2 } : undefined}
         >
           {/* ── Links ── */}
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}

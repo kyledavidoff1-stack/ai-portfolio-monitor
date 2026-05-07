@@ -12,7 +12,7 @@ import type { IncomeQ, CashFlowQ, BalanceSheetQ, AnalystEstimate } from '@/lib/f
 import { SectorRelativeChart, RelativePerfPoint } from './SectorRelativeChart';
 import type { PeerRow, RevenueSegment, AnalysisScan, NewsSentiment, DriverAnalysis, ThesisCheck, Catalyst, Bucket, BucketConfidence } from '@/types';
 import { fmtB, pctAbs } from '@/utils/format';
-import { BUCKET_LABELS } from '@/lib/config/constants';
+import { BUCKET_LABELS, BUCKET_COLORS } from '@/lib/config/constants';
 import { StepRefreshButton } from './StepRefreshButton';
 
 // Bump key to force-reset any cached layouts when the default arrangement changes
@@ -630,7 +630,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                     {ticker} {income[0].period} FY{income[0].date.slice(0, 4)}
                   </span>
                 ) : (
-                  <span className="text-[13px] text-gray-500 italic">placeholder</span>
+                  <span className="text-[13px] text-gray-500 italic">no data</span>
                 )}
                 <button
                   onClick={toggleRevenue}
@@ -959,11 +959,11 @@ function CatalystTimelineReal({ catalysts }: { catalysts: Catalyst[] }) {
 // ── Bucket indicator dots ──────────────────────────────────────────────────────
 
 const BUCKETS = [
-  { label: 'Market Beta', activeDot: 'bg-indigo-400'   },
-  { label: 'Sector',      activeDot: 'bg-blue-500'    },
-  { label: 'Sentiment',   activeDot: 'bg-amber-500'   },
-  { label: 'Fundamental', activeDot: 'bg-emerald-500' },
-] as const;
+  { label: 'Market Beta', activeDot: BUCKET_COLORS[1] },
+  { label: 'Sector',      activeDot: BUCKET_COLORS[2] },
+  { label: 'Sentiment',   activeDot: BUCKET_COLORS[3] },
+  { label: 'Fundamental', activeDot: BUCKET_COLORS[4] },
+];
 
 function BucketDots({ active }: { active: 1 | 2 | 3 | 4 | null }) {
   return (
@@ -1049,11 +1049,11 @@ function CatalystTimeline() {
       </div>
 
       <div className="relative h-4 mt-0.5">
-        <span className="absolute left-0 text-[13px] text-gray-400">Today</span>
-        <span className="absolute text-[13px] text-gray-600 -translate-x-1/2" style={{ left: '25%' }}>+15d</span>
-        <span className="absolute text-[13px] text-gray-600 -translate-x-1/2" style={{ left: '50%' }}>+30d</span>
-        <span className="absolute text-[13px] text-gray-600 -translate-x-1/2" style={{ left: '75%' }}>+45d</span>
-        <span className="absolute right-0 text-[13px] text-gray-400">+60d</span>
+        <span className="absolute left-0 text-[12px] text-gray-400">Today</span>
+        <span className="absolute text-[12px] text-gray-600 -translate-x-1/2" style={{ left: '25%' }}>+15d</span>
+        <span className="absolute text-[12px] text-gray-600 -translate-x-1/2" style={{ left: '50%' }}>+30d</span>
+        <span className="absolute text-[12px] text-gray-600 -translate-x-1/2" style={{ left: '75%' }}>+45d</span>
+        <span className="absolute right-0 text-[12px] text-gray-400">+60d</span>
       </div>
     </div>
   );
