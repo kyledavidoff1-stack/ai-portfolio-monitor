@@ -44,8 +44,19 @@ Open [http://localhost:3000](http://localhost:3000). Every panel renders with a
 five-holding demo portfolio — scan results, theses, catalysts, correlations, and
 financials — with no FMP or Claude key required.
 
-The demo numbers are invented. It's a fixture for exploring the interface, not
-investment research.
+> **`seed:demo` replaces the contents of your database.** If you already track a
+> real portfolio, point it at a separate file instead so your holdings and theses
+> are untouched:
+>
+> ```bash
+> DATABASE_URL=./data/demo.db npm run db:push
+> DATABASE_URL=./data/demo.db npm run seed:demo
+> DATABASE_URL=./data/demo.db npm run dev
+> ```
+
+The demo numbers are invented — including headlines and analyst actions attributed
+to real publications and firms. It's a fixture for exploring the interface, not
+investment research, and not something to share as though it were real.
 
 ---
 
