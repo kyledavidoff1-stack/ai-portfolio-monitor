@@ -4,7 +4,7 @@ export type Bucket = 1 | 2 | 3 | 4;
 export type BucketConfidence = 'high' | 'medium' | 'low';
 export type Regime = 'risk_on' | 'risk_off' | 'rotation' | 'dislocation';
 export type ThesisStatus = 'confirmed' | 'challenged' | 'neutral';
-export type ScanType = 'full' | 'delta';
+export type ScanType = 'full' | 'delta' | 'step';
 export type Severity = 'high' | 'medium' | 'low';
 export type FlagType = 'regime_divergence' | 'sector_divergence' | 'thesis_challenge';
 
@@ -107,12 +107,14 @@ export interface AnalysisScan {
   bucketConfidence: BucketConfidence | null;
   newsSentiment: NewsSentiment | null;
   thesisStatus: ThesisStatus | null;
-  thesisAnalysis: string | null;
+  thesisAnalysis: ThesisCheck | null;
   catalysts: Catalyst[] | null;
   fiveMetrics: FiveMetrics | null;
   sectorRelative: SectorRelativeData | null;
   driverAnalysis: DriverAnalysis | null;
   fullAnalysis: Record<string, unknown> | null;
+  /** ISO timestamp per pipeline step, tracking when each was last actually run */
+  stepTimestamps: Record<string, string> | null;
   scannedAt: string;
 }
 

@@ -9,18 +9,20 @@ import { eq } from 'drizzle-orm';
 import { callClaude } from './client';
 import { buildRegimeCheckPrompt } from './prompts/regime-check';
 import { buildAnomalyDetectionPrompt } from './prompts/anomaly-detection';
-import type { Holding, AnalysisScan, Regime, AnomalyFlag } from '@/types';
+import type { Holding, AnalysisScan, Regime, AnomalyFlag, RegimeSnapshot } from '@/types';
 import type { QuoteData } from '@/lib/fmp/quotes';
 
 export interface AnalyzePortfolioParams {
   holdings: Holding[];
   quotes: Record<string, QuoteData>;
   latestScans: AnalysisScan[];
+  /** A still-fresh regime snapshot to reuse instead of re-running step 7. */
+  cachedRegime?: RegimeSnapshot | null;
   onStep?: (step: 'regime' | 'anomaly') => void;
 }
 
 export async function analyzePortfolio(params: AnalyzePortfolioParams): Promise<void> {
-  const { holdings, quotes, latestScans, onStep } = params;
+  const { holdings, quotes, latestScans, cachedRegime, onStep } = params;
 
   const spyQuote = quotes['SPY'];
   if (!spyQuote) {
@@ -34,6 +36,12 @@ export async function analyzePortfolio(params: AnalyzePortfolioParams): Promise<
   let regimeRationale = '';
   let vix: number | null = null;
 
+  if (cachedRegime) {
+    regime = cachedRegime.regime;
+    regimeRationale = cachedRegime.rationale;
+    vix = cachedRegime.vix;
+    console.log(`[Portfolio] Regime cache HIT (${regime}) — skipping step 7`);
+  } else {
   try {
     const prompt = buildRegimeCheckPrompt({
       spyPrice: spyQuote.price,
@@ -81,6 +89,7 @@ export async function analyzePortfolio(params: AnalyzePortfolioParams): Promise<
       vix: null,
       snappedAt: new Date().toISOString(),
     }).catch(() => {}); // best-effort insert
+  }
   }
 
   // ── Step 8: Anomaly Detection ──

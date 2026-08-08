@@ -135,7 +135,7 @@ export default async function DashboardPage() {
       thesisConfirmed++;
     } else if (scan.thesisStatus === 'challenged') {
       thesisChallenged++;
-      thesisAtRisk.push({ ticker: h.ticker, analysis: scan.thesisAnalysis ?? 'Thesis challenged' });
+      thesisAtRisk.push({ ticker: h.ticker, analysis: scan.thesisAnalysis?.today.explanation || 'Thesis challenged' });
     } else {
       thesisPressure++;
     }

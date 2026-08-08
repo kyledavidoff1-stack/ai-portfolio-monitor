@@ -6,6 +6,7 @@
     "dev": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --experimental-strip-types --no-warnings --import ./tests/register-hook.mjs --test \"tests/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push"

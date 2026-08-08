@@ -206,17 +206,24 @@ export async function POST(request: Request) {
       updateFields = { catalysts: JSON.stringify(result) };
     }
 
-    // Update existing row or insert new one
+    // Update existing row or insert new one. Record when this step last ran so
+    // the next delta scan treats it as fresh.
     const now = new Date().toISOString();
+    const stepTimestamps = JSON.stringify({
+      ...(existingScan?.stepTimestamps ?? {}),
+      [step]: now,
+    });
+
     if (scanRow) {
       await db.update(analysisScans)
-        .set({ ...updateFields, scannedAt: now })
+        .set({ ...updateFields, stepTimestamps, scannedAt: now })
         .where(eq(analysisScans.id, scanRow.id));
     } else {
       await db.insert(analysisScans).values({
         ticker: symbol,
         scanType: 'step',
         ...updateFields,
+        stepTimestamps,
         scannedAt: now,
       });
     }
