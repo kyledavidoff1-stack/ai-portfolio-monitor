@@ -94,7 +94,7 @@ Portfolio-level:
 7. Regime Check
 8. Anomaly Detection
 
-See [docs/architecture.md](docs/architecture.md) for details.
+Architecture docs (`docs/architecture.md`) are coming in Sprint 7.
 
 ---
 
@@ -103,14 +103,15 @@ See [docs/architecture.md](docs/architecture.md) for details.
 | Sprint | Status | Goal |
 |--------|--------|------|
 | Sprint 0 | ✅ Done | Project scaffolding |
-| Sprint 1 | Pending | Holdings management + FMP integration |
-| Sprint 2 | Pending | Fundamental data layer |
-| Sprint 3 | Pending | Sector-relative analysis |
-| Sprint 4 | Pending | Claude AI pipeline |
-| Sprint 5 | Pending | Thesis tracking |
-| Sprint 6 | Pending | Portfolio dashboard |
-| Sprint 7 | Pending | Caching, history, polish |
-| Sprint 8 | Pending | Documentation + open source prep |
+| Sprint 1 | ✅ Done | Holdings management + FMP integration |
+| Sprint 2 | ✅ Done | Fundamental data layer |
+| Sprint 3 | ✅ Done | Sector-relative analysis + correlation |
+| Sprint 4 | ✅ Done | Claude AI pipeline (all 8 steps) + thesis tracking |
+| Sprint 5 | 🔶 Partial | Background scans + per-step refresh done; TTL caching, delta scans, and scan history still open |
+| Sprint 6 | 🔶 Partial | Bucket colors, empty states, typography done; responsive/perf/error-handling passes open |
+| Sprint 7 | Pending | Documentation + open source prep |
+
+See `CHANGELOG.md` for the detailed, up-to-date state of each area.
 
 ---
 
@@ -130,7 +131,7 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Contributing
 
-Contributions welcome. See [docs/contributing.md](docs/contributing.md) (coming in Sprint 8).
+Contributions welcome. A contributing guide (`docs/contributing.md`) is coming in Sprint 7.
 
 Key areas for community contribution:
 - Sector ETF mappings (add more industry-level sub-sector ETFs)
@@ -141,7 +142,7 @@ Key areas for community contribution:
 
 ## License
 
-MIT (TBD — to be finalized in Sprint 8)
+MIT (TBD — to be finalized in Sprint 7)
 
 ---
 

@@ -1,6 +1,6 @@
 # CHANGELOG — Portfolio Monitor
 
-> Last updated: 2026-04-06
+> Last updated: 2026-08-08
 > Purpose: Session context for continuing development. Documents what's built, what changed post-sprint, and what's next.
 
 ---
@@ -14,9 +14,34 @@
 | 2 | Complete | FMP financials (income/cashflow/balance sheet), 24h SQLite cache, Sankey diagram, Fundamentals panel, peer comparison, quote normalization |
 | 3 | Complete | 252-day price history, 30/90-day rolling correlation, correlation heatmap, sector-relative charts, P/E percentile, portfolio P&L, SPY tracking |
 | 4 | Complete | Full Claude AI pipeline — all 8 prompt steps, SSE scan orchestration, regime snapshots, anomaly flags |
-| 5 | Not started | Caching, history, delta scans |
-| 6 | Not started | Polish and edge cases |
-| 7 | Not started | Docs + open source prep |
+| 5 | Partial | Shipped: background scan singleton, per-step manual refresh, anomaly display. NOT built: per-step TTL cache invalidation, delta scans, historical scan browsing, time-range filtering |
+| 6 | Partial | Shipped: centralized bucket colors, empty states, typography pass. Remaining: responsive checks, thin-ticker fallbacks, performance, error-handling audit |
+| 7 | Not started | Docs + open source prep (README screenshots, docs/ folder, LICENSE) |
+
+---
+
+## Sprint 5 commit (2026-04-13) — Background Scan & Per-Step Refresh
+
+Note: this commit shipped a different subset than the planned Sprint 5 (caching/delta/history remain open — see table above).
+
+- Background scan singleton (`src/lib/scan/scan-manager.ts`) — scans survive page navigation/refresh via server-side scan manager with reconnectable SSE progress stream
+- Per-panel refresh: re-run individual pipeline steps (news, bucket, thesis, catalysts) from company detail page (`src/app/api/scan/step/route.ts`, `StepRefreshButton.tsx`)
+- Anomaly flag column: pulsing red dot indicator with hover tooltip
+- Global Claude brevity instruction prepended to all pipeline prompts
+- Quarterly estimates derived from annual when FMP premium unavailable
+- Catalysts panel: flat date-sorted list; minimum 12px font size enforced
+
+## Layout fixes (2026-05-05)
+
+- Persist panel collapse state per ticker; default expanded; smooth grid-rows collapse animation
+- Restored panel scrolling and per-company portfolio drivers list
+- Restored bucket distribution bars; added catalyst timeline to dashboard
+
+## Sprint 6 commit (2026-05-07) — Partial polish
+
+- Centralized bucket colors in `src/lib/config/constants.ts` (indigo/blue/amber/emerald); fixed sentiment category color (cyan → amber)
+- SankeyChart: dimmed placeholder with label instead of misleading sample data when financials unavailable
+- Ghost timeline label sizing consistency (12px)
 
 ---
 
@@ -101,6 +126,8 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 ---
 
 ## Known Issues
+
+0. **Revenue Flow Sankey renders blank (regression, found 2026-08-08)** — the panel body has height, but the chart wrapper collapses to 0px, so `SankeyChart`'s ResizeObserver never measures a usable size and no SVG is drawn. Cause: in `CompanyGrid.tsx` the Sankey sits under `<div className="min-h-0 overflow-y-auto">` (a block, not flex, container), so the inner `flex-1`/`h-full` chain has no definite height to inherit. Introduced by the 2026-05-05 panel-scrolling refactor (`d598e40`). Fix: give the scroll container a flex context (e.g. `flex flex-col`) or give the Sankey wrapper an explicit min-height.
 
 1. **Tailwind CSS intermittent styling loss** — user reports occasional "no formatting" on page load. CSS file is generated and served correctly (46KB, contains expected classes). Likely a browser caching issue — hard refresh (`Cmd+Shift+R`) resolves it. The dev script already runs `rm -rf .next` to clear server-side cache.
 
