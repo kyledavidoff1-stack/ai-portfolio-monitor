@@ -4,7 +4,7 @@ import { eq, desc, and } from 'drizzle-orm';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatCurrency, formatPercent, formatMultiple, fmtB, pctAbs } from '@/utils/format';
-import { fetchQuote } from '@/lib/fmp/quotes';
+import { getQuotes, type QuoteData } from '@/lib/fmp/quotes';
 import { getFundamentals } from '@/lib/fmp/fundamentals-cache';
 import { fetchAnalystEstimates } from '@/lib/fmp/financials';
 import { ensureAllPriceHistory, getAlignedPriceHistory, getAlignedIntradayHistory } from '@/lib/fmp/prices';
@@ -12,6 +12,7 @@ import { normalizeTo100, percentileRank } from '@/lib/analysis/correlation';
 import { MetricCardData } from '@/components/company/FiveNumbers';
 import { CompanyGridLoader } from '@/components/company/CompanyGridLoader';
 import { RefreshButton } from '@/components/company/RefreshButton';
+import { ScanHistoryPicker, type ScanHistoryEntry } from '@/components/company/ScanHistoryPicker';
 import { deserializeScan } from '@/utils/deserialize-scan';
 import { BUCKET_LABELS } from '@/lib/config/constants';
 import type { AnalysisScan } from '@/types';
@@ -22,6 +23,7 @@ export const dynamic = 'force-dynamic';
 
 interface Props {
   params: Promise<{ ticker: string }>;
+  searchParams: Promise<{ scan?: string }>;
 }
 
 /** Format "2024-09-30" → "Q3 '24" */
@@ -211,18 +213,22 @@ function buildFiveCards(
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default async function CompanyPage({ params }: Props) {
+export default async function CompanyPage({ params, searchParams }: Props) {
   const { ticker } = await params;
+  const { scan: scanParam } = await searchParams;
   const symbol = ticker.toUpperCase();
+  const parsedScanId = scanParam ? Number.parseInt(scanParam, 10) : NaN;
+  const requestedScanId = Number.isInteger(parsedScanId) ? parsedScanId : null;
 
   const [holding] = await db.select().from(holdings).where(eq(holdings.ticker, symbol));
   if (!holding) notFound();
 
-  const [quote, blob, analystEstimate] = await Promise.all([
-    fetchQuote(symbol).catch(() => null),
+  const [quotes, blob, analystEstimate] = await Promise.all([
+    getQuotes([symbol]).catch(() => ({} as Record<string, QuoteData>)),
     getFundamentals(symbol),
     fetchAnalystEstimates(symbol).catch(() => null),
   ]);
+  const quote = quotes[symbol] ?? null;
 
   const livePrice       = quote && !quote.unavailable ? quote.price        : null;
   const dailyChangeAmt  = quote && !quote.unavailable ? quote.change        : null;
@@ -308,13 +314,27 @@ export default async function CompanyPage({ params }: Props) {
     }
   }
 
-  // ── Latest AI scan for this ticker ──
+  // ── AI scan for this ticker: the latest, or a past one via ?scan=<id> ──
   let latestScan: AnalysisScan | null = null;
+  let scanHistory: ScanHistoryEntry[] = [];
   try {
-    const [scanRow] = await db.select().from(analysisScans)
+    const scanRows = await db.select().from(analysisScans)
       .where(eq(analysisScans.ticker, symbol))
       .orderBy(desc(analysisScans.scannedAt))
-      .limit(1);
+      .limit(50);
+
+    scanHistory = scanRows.map((r) => ({
+      id: r.id,
+      scannedAt: r.scannedAt,
+      scanType: r.scanType,
+      bucketPrimary: r.bucketPrimary,
+      thesisStatus: r.thesisStatus,
+    }));
+
+    const scanRow = requestedScanId != null
+      ? scanRows.find((r) => r.id === requestedScanId) ?? scanRows[0]
+      : scanRows[0];
+
     if (scanRow) {
       latestScan = deserializeScan(scanRow);
       // Overlay forward outlooks onto five cards from scan data
@@ -330,6 +350,8 @@ export default async function CompanyPage({ params }: Props) {
   } catch {
     // Degrade gracefully
   }
+
+  const viewingPastScan = !!latestScan && scanHistory.length > 0 && latestScan.id !== scanHistory[0].id;
 
   // Driver summary for header
   const driverSummary = latestScan?.bucketPrimary
@@ -362,9 +384,23 @@ export default async function CompanyPage({ params }: Props) {
               data cached {formatRelativeTime(blob.cachedAt)}
             </span>
           )}
+          <ScanHistoryPicker history={scanHistory} selectedId={latestScan?.id ?? null} />
           <RefreshButton ticker={symbol} />
         </div>
       </div>
+
+      {viewingPastScan && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-950/30 border border-amber-900/50">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+          <p className="text-[13px] text-amber-200/90">
+            Viewing a past scan from {new Date(latestScan!.scannedAt).toLocaleString()}. Prices and
+            financials shown elsewhere on this page are current.
+          </p>
+          <Link href={`/company/${symbol}`} className="ml-auto text-[13px] text-amber-300 hover:text-amber-100 underline shrink-0">
+            Back to latest
+          </Link>
+        </div>
+      )}
 
       {/* ── Compact Stats Strip ── */}
       <div className="flex items-center flex-wrap gap-y-2">

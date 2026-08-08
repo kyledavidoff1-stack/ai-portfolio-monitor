@@ -5,7 +5,7 @@
 
 import { db } from '@/lib/db';
 import { holdings, analysisScans, regimeSnapshots } from '@/lib/db/schema';
-import { fetchQuotes } from '@/lib/fmp/quotes';
+import { getQuotes } from '@/lib/fmp/quotes';
 import { getFundamentals } from '@/lib/fmp/fundamentals-cache';
 import { ensureAllPriceHistory, getAlignedPriceHistory } from '@/lib/fmp/prices';
 import { normalizeTo100, percentileRank } from '@/lib/analysis/correlation';
@@ -148,7 +148,7 @@ async function runScan(mode: ScanMode) {
     scanState.message = 'Fetching market data...';
     pushEvent('progress', { message: scanState.message, currentTicker: 0, totalTickers: allHoldings.length });
 
-    const quotes = await fetchQuotes(allQuoteTickers);
+    const quotes = await getQuotes(allQuoteTickers);
     const spyQuote = quotes['SPY'];
 
     if (!spyQuote) {
