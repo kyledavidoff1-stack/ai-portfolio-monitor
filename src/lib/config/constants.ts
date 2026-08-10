@@ -15,6 +15,21 @@ export const CACHE_FUNDAMENTALS_HOURS =
 export const CACHE_CATALYSTS_HOURS =
   parseInt(process.env.CACHE_CATALYSTS_HOURS ?? '12', 10);
 
+// Per-pipeline-step cache TTLs (hours). A delta scan only re-runs steps whose
+// TTL has expired. Bucket assignment (0) is always recalculated — it depends
+// on today's price action. Sector-relative and thesis share the fundamentals
+// TTL; the regime check shares the news TTL (both are market-hours signals).
+export const STEP_TTL_HOURS: Record<string, number> = {
+  news: CACHE_NEWS_HOURS,
+  fundamentals: CACHE_FUNDAMENTALS_HOURS,
+  sector: CACHE_FUNDAMENTALS_HOURS,
+  bucket: 0,
+  thesis: CACHE_FUNDAMENTALS_HOURS,
+  catalysts: CACHE_CATALYSTS_HOURS,
+};
+
+export const REGIME_TTL_HOURS = CACHE_NEWS_HOURS;
+
 // Bucket labels
 export const BUCKET_LABELS: Record<number, string> = {
   1: 'Market Beta',

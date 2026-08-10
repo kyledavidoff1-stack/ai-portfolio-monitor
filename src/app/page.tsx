@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { holdings, analysisScans, regimeSnapshots, anomalyFlags } from '@/lib/db/schema';
 import { desc, eq } from 'drizzle-orm';
-import { fetchQuotes, QuoteData } from '@/lib/fmp/quotes';
+import { getQuotes, QuoteData } from '@/lib/fmp/quotes';
 import { ensureAllPriceHistory, getAlignedPriceHistory } from '@/lib/fmp/prices';
 import { buildCorrelationMatrix, CorrelationMatrix } from '@/lib/analysis/correlation';
 import { Holding, AnalysisScan, RegimeSnapshot, AnomalyFlag } from '@/types';
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
 
   if (tickers.length > 0) {
     try {
-      quotes = await fetchQuotes([...tickers, 'SPY']);
+      quotes = await getQuotes([...tickers, 'SPY']);
       spyQuote = quotes['SPY'] ?? null;
     } catch {
       // Quotes unavailable — degrade gracefully
@@ -135,7 +135,7 @@ export default async function DashboardPage() {
       thesisConfirmed++;
     } else if (scan.thesisStatus === 'challenged') {
       thesisChallenged++;
-      thesisAtRisk.push({ ticker: h.ticker, analysis: scan.thesisAnalysis ?? 'Thesis challenged' });
+      thesisAtRisk.push({ ticker: h.ticker, analysis: scan.thesisAnalysis?.today.explanation || 'Thesis challenged' });
     } else {
       thesisPressure++;
     }
@@ -180,7 +180,14 @@ export default async function DashboardPage() {
           {/* SPY indicator */}
           {spyQuote && (
             <div className="pr-6 mr-6 border-r border-gray-800">
-              <p className="text-[13px] text-gray-400 uppercase tracking-widest font-medium">SPY Today</p>
+              <p
+                className="text-[13px] text-gray-400 uppercase tracking-widest font-medium"
+                title={spyQuote.source === 'history'
+                  ? `Live quotes unavailable — showing the last cached close (${spyQuote.asOf ?? 'unknown date'})`
+                  : undefined}
+              >
+                {spyQuote.source === 'history' ? 'SPY at Close' : 'SPY Today'}
+              </p>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-gray-300 text-sm font-mono font-semibold">
                   ${spyQuote.price.toFixed(2)}

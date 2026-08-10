@@ -52,6 +52,7 @@ export const analysisScans = sqliteTable('analysis_scans', {
   sectorRelative: text('sector_relative'),   // JSON: valuation vs sector, premium/discount
   driverAnalysis: text('driver_analysis'),   // JSON: past/today/forward driver assessment
   fullAnalysis: text('full_analysis'),       // JSON: complete AI output for deep dive
+  stepTimestamps: text('step_timestamps'),   // JSON: per-step freshness, e.g. {"news":"2026-08-08T11:00:00Z"}
   scannedAt: text('scanned_at').notNull(),
 });
 

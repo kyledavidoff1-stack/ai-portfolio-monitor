@@ -7,7 +7,7 @@
 import { db } from '@/lib/db';
 import { holdings, analysisScans } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { fetchQuotes } from '@/lib/fmp/quotes';
+import { getQuotes } from '@/lib/fmp/quotes';
 import { getFundamentals } from '@/lib/fmp/fundamentals-cache';
 import { callClaude } from '@/lib/claude/client';
 import { buildNewsSentimentPrompt } from '@/lib/claude/prompts/news-sentiment';
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
       // Needs quote data + prior step outputs (pull from existing scan)
       const sectorEtf = holding.sectorEtf ?? 'XLK';
       const quoteTickers = [symbol, 'SPY', sectorEtf];
-      const quotes = await fetchQuotes([...new Set(quoteTickers)]);
+      const quotes = await getQuotes([...new Set(quoteTickers)]);
       const quote = quotes[symbol];
       const spyQuote = quotes['SPY'];
 
@@ -206,17 +206,24 @@ export async function POST(request: Request) {
       updateFields = { catalysts: JSON.stringify(result) };
     }
 
-    // Update existing row or insert new one
+    // Update existing row or insert new one. Record when this step last ran so
+    // the next delta scan treats it as fresh.
     const now = new Date().toISOString();
+    const stepTimestamps = JSON.stringify({
+      ...(existingScan?.stepTimestamps ?? {}),
+      [step]: now,
+    });
+
     if (scanRow) {
       await db.update(analysisScans)
-        .set({ ...updateFields, scannedAt: now })
+        .set({ ...updateFields, stepTimestamps, scannedAt: now })
         .where(eq(analysisScans.id, scanRow.id));
     } else {
       await db.insert(analysisScans).values({
         ticker: symbol,
         scanType: 'step',
         ...updateFields,
+        stepTimestamps,
         scannedAt: now,
       });
     }

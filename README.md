@@ -6,6 +6,8 @@ A personal portfolio intelligence platform that answers two questions for every 
 
 Powered by Claude AI + Financial Modeling Prep. Local-first. Open source.
 
+![Portfolio dashboard](docs/images/dashboard.png)
+
 ---
 
 ## What It Does
@@ -19,13 +21,49 @@ Portfolio Monitor combines deep company-level intelligence with portfolio-level 
 - **Regime Indicator** — risk-on / risk-off / rotation / dislocation at the top of every session
 - **Anomaly Detection** — flags when a stock diverges from the market regime (the thing you actually want to know)
 - **Correlation Heatmap** — surface hidden concentration risk across your portfolio
+- **Scan History** — browse how the analysis of a holding changed over time
+
+Company detail view — driver analysis, thesis tracking, sentiment, peers, catalysts, and a revenue flow diagram:
+
+![Company detail](docs/images/company.png)
+
+---
+
+## Try It Without API Keys
+
+The fastest way to see the whole thing working:
+
+```bash
+npm install
+npm run db:push      # create the local database
+npm run seed:demo    # load a realistic demo portfolio
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Every panel renders with a
+five-holding demo portfolio — scan results, theses, catalysts, correlations, and
+financials — with no FMP or Claude key required.
+
+> **`seed:demo` replaces the contents of your database.** If you already track a
+> real portfolio, point it at a separate file instead so your holdings and theses
+> are untouched:
+>
+> ```bash
+> DATABASE_URL=./data/demo.db npm run db:push
+> DATABASE_URL=./data/demo.db npm run seed:demo
+> DATABASE_URL=./data/demo.db npm run dev
+> ```
+
+The demo numbers are invented — including headlines and analyst actions attributed
+to real publications and firms. It's a fixture for exploring the interface, not
+investment research, and not something to share as though it were real.
 
 ---
 
 ## Setup
 
 ### Requirements
-- Node.js 18+
+- Node.js 22+ (the test runner uses native TypeScript support)
 - npm
 
 ### 1. Clone and install
@@ -45,13 +83,21 @@ cp .env.local.example .env.local
 Edit `.env.local` and add your keys:
 
 ```bash
-FMP_API_KEY=your_fmp_api_key_here       # https://financialmodelingprep.com/developer
+FMP_API_KEY=your_fmp_api_key_here        # https://financialmodelingprep.com/developer
 CLAUDE_API_KEY=your_claude_api_key_here  # https://console.anthropic.com
 ```
 
-**FMP API:** Free tier (250 req/day) works for development. For active use, the $14/month Starter plan (300 req/min) removes rate limits.
+**FMP API:** the free tier (250 requests/day) covers development. The $14/month
+Starter plan removes the rate limits that otherwise show up as missing panels.
 
-**Claude API:** Typical cost is $10–30/month with caching for a portfolio of 8–12 stocks. See the technical plan for full cost breakdown.
+**Claude API:** roughly $10–30/month for a portfolio of 8–12 stocks with delta
+scans enabled. A full scan of 10 stocks costs about $0.50; subsequent same-day
+scans cost a fraction of that because only expired steps re-run.
+
+**Running without a paid FMP plan.** The app degrades rather than breaking: when
+live quotes are unavailable it falls back to the most recent cached daily closes
+and labels them as end-of-day, and panels with no data show explicit empty states.
+You can add holdings, write theses, and run AI scans on a free key.
 
 ### 3. Initialize the database
 
@@ -60,7 +106,8 @@ npm run db:generate
 npm run db:migrate
 ```
 
-This creates a local SQLite database at `./data/portfolio.db`. No cloud dependency. Your data never leaves your machine.
+This creates a local SQLite database at `./data/portfolio.db`. No cloud
+dependency. Your data never leaves your machine.
 
 ### 4. Run
 
@@ -68,7 +115,21 @@ This creates a local SQLite database at `./data/portfolio.db`. No cloud dependen
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+---
+
+## Scanning
+
+The dashboard has two scan buttons:
+
+- **Run Scan** — a delta scan. Re-runs only the analysis steps whose cached data
+  has expired (news after 4h, catalysts after 12h, fundamentals after 24h), plus
+  anything invalidated by a price spike or an edited thesis. Bucket assignment
+  and anomaly detection always re-run. This is what you want day to day.
+- **Full** — forces every step for every holding, ignoring cache.
+
+Individual panels on the company page have their own refresh buttons for
+re-running a single step. Scans run server-side and survive navigating away or
+reloading the page.
 
 ---
 
@@ -94,7 +155,22 @@ Portfolio-level:
 7. Regime Check
 8. Anomaly Detection
 
-See [docs/architecture.md](docs/architecture.md) for details.
+See [docs/architecture.md](docs/architecture.md) for the data model, the panel
+system, the caching rules, and how to add a panel or a pipeline step.
+
+---
+
+## Development
+
+```bash
+npm run dev         # clears .next cache, then starts on :3000
+npm run build       # production build
+npm test            # delta scan step-selection tests
+npm run seed:demo   # reload demo data
+```
+
+If the server can't bind to :3000, kill the old process first:
+`kill $(lsof -ti:3000)`
 
 ---
 
@@ -103,14 +179,15 @@ See [docs/architecture.md](docs/architecture.md) for details.
 | Sprint | Status | Goal |
 |--------|--------|------|
 | Sprint 0 | ✅ Done | Project scaffolding |
-| Sprint 1 | Pending | Holdings management + FMP integration |
-| Sprint 2 | Pending | Fundamental data layer |
-| Sprint 3 | Pending | Sector-relative analysis |
-| Sprint 4 | Pending | Claude AI pipeline |
-| Sprint 5 | Pending | Thesis tracking |
-| Sprint 6 | Pending | Portfolio dashboard |
-| Sprint 7 | Pending | Caching, history, polish |
-| Sprint 8 | Pending | Documentation + open source prep |
+| Sprint 1 | ✅ Done | Holdings management + FMP integration |
+| Sprint 2 | ✅ Done | Fundamental data layer |
+| Sprint 3 | ✅ Done | Sector-relative analysis + correlation |
+| Sprint 4 | ✅ Done | Claude AI pipeline (all 8 steps) + thesis tracking |
+| Sprint 5 | ✅ Done | Background scans, per-step TTL caching, delta scans, scan history |
+| Sprint 6 | 🔶 Partial | Bucket colors, empty states, typography, no-FMP degradation done; responsive + performance passes open |
+| Sprint 7 | ✅ Done | Documentation, license, demo mode |
+
+See `CHANGELOG.md` for detail on what's built and what's still open.
 
 ---
 
@@ -120,28 +197,37 @@ See [docs/architecture.md](docs/architecture.md) for details.
 |-------|--------|
 | Frontend | Next.js 15, App Router, TypeScript |
 | Styling | Tailwind CSS |
-| Charts | Recharts |
+| Charts | Recharts + D3 (Sankey) |
 | Database | SQLite (better-sqlite3) |
 | ORM | Drizzle |
-| AI | Anthropic Claude API (Sonnet) |
+| AI | Anthropic Claude API |
 | Financial data | Financial Modeling Prep |
 
 ---
 
 ## Contributing
 
-Contributions welcome. See [docs/contributing.md](docs/contributing.md) (coming in Sprint 8).
+Contributions welcome — see [docs/contributing.md](docs/contributing.md).
 
 Key areas for community contribution:
 - Sector ETF mappings (add more industry-level sub-sector ETFs)
 - Prompt improvements (better structured outputs)
+- Ticker coverage for symbols FMP handles poorly
 - Brokerage connectors (V2: Plaid integration planned)
+
+---
+
+## Disclaimer
+
+Portfolio Monitor is a research and monitoring tool, not investment advice. AI
+output can be wrong or out of date, and market data may be delayed or incomplete.
+Verify anything you plan to act on.
 
 ---
 
 ## License
 
-MIT (TBD — to be finalized in Sprint 8)
+[MIT](LICENSE)
 
 ---
 

@@ -1,9 +1,11 @@
-import { startScan, isScanRunning, getScanState, getProgressSince } from '@/lib/scan/scan-manager';
+import { startScan, isScanRunning, getScanState, getProgressSince, type ScanMode } from '@/lib/scan/scan-manager';
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/scan — start a scan (fire-and-forget)
-export async function POST() {
+// Body: { mode?: 'auto' | 'full' }. 'auto' (default) is a delta scan that only
+// re-runs pipeline steps whose cache TTL has expired.
+export async function POST(request: Request) {
   if (isScanRunning()) {
     return Response.json(
       { running: true, state: getScanState() },
@@ -11,9 +13,17 @@ export async function POST() {
     );
   }
 
-  startScan();
+  let mode: ScanMode = 'auto';
+  try {
+    const body = await request.json();
+    if (body?.mode === 'full') mode = 'full';
+  } catch {
+    // No body / invalid JSON — keep the default
+  }
 
-  return Response.json({ started: true }, { status: 202 });
+  startScan(mode);
+
+  return Response.json({ started: true, mode }, { status: 202 });
 }
 
 // GET /api/scan — SSE stream that observes scan progress

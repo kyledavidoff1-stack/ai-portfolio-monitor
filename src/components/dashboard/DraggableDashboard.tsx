@@ -213,21 +213,6 @@ function ThesisTrackerContent({
   holdings: Holding[];
   latestScans: Record<string, AnalysisScan>;
 }) {
-  // Extract the "today" explanation from the thesis check JSON
-  function extractThesisSummary(raw: string | null, fallback: string): string {
-    if (!raw) return fallback;
-    try {
-      const parsed = JSON.parse(raw);
-      // ThesisCheck shape: { status, past, today: { explanation }, forward }
-      if (parsed?.today?.explanation) return parsed.today.explanation;
-      if (typeof parsed === 'string') return parsed;
-      return fallback;
-    } catch {
-      // If it's already a plain string (not JSON), use it directly
-      return raw;
-    }
-  }
-
   // Compute counts and per-stock statuses
   let confirmed = 0, pressure = 0, challenged = 0, unset = 0;
   const stockStatuses: Array<{ ticker: string; status: string | null; analysis: string }> = [];
@@ -241,13 +226,13 @@ function ThesisTrackerContent({
       stockStatuses.push({ ticker: h.ticker, status: null, analysis: hasThesis ? 'Not scanned' : 'No thesis set' });
     } else if (scan.thesisStatus === 'confirmed') {
       confirmed++;
-      stockStatuses.push({ ticker: h.ticker, status: 'confirmed', analysis: extractThesisSummary(scan.thesisAnalysis, 'Thesis confirmed') });
+      stockStatuses.push({ ticker: h.ticker, status: 'confirmed', analysis: scan.thesisAnalysis?.today.explanation || 'Thesis confirmed' });
     } else if (scan.thesisStatus === 'challenged') {
       challenged++;
-      stockStatuses.push({ ticker: h.ticker, status: 'challenged', analysis: extractThesisSummary(scan.thesisAnalysis, 'Thesis challenged') });
+      stockStatuses.push({ ticker: h.ticker, status: 'challenged', analysis: scan.thesisAnalysis?.today.explanation || 'Thesis challenged' });
     } else {
       pressure++;
-      stockStatuses.push({ ticker: h.ticker, status: 'neutral', analysis: extractThesisSummary(scan.thesisAnalysis, 'Under pressure') });
+      stockStatuses.push({ ticker: h.ticker, status: 'neutral', analysis: scan.thesisAnalysis?.today.explanation || 'Under pressure' });
     }
   }
 

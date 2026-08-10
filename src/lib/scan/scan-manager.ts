@@ -4,16 +4,21 @@
  */
 
 import { db } from '@/lib/db';
-import { holdings, analysisScans } from '@/lib/db/schema';
-import { fetchQuotes } from '@/lib/fmp/quotes';
+import { holdings, analysisScans, regimeSnapshots } from '@/lib/db/schema';
+import { getQuotes } from '@/lib/fmp/quotes';
 import { getFundamentals } from '@/lib/fmp/fundamentals-cache';
 import { ensureAllPriceHistory, getAlignedPriceHistory } from '@/lib/fmp/prices';
 import { normalizeTo100, percentileRank } from '@/lib/analysis/correlation';
-import { analyzeStock, type StepName } from '@/lib/claude/pipeline';
+import { analyzeStock } from '@/lib/claude/pipeline';
 import { analyzePortfolio } from '@/lib/claude/portfolio-scan';
 import { deserializeScan } from '@/utils/deserialize-scan';
+import { REGIME_TTL_HOURS } from '@/lib/config/constants';
+import { selectSteps, isStale, ALL_STEPS, type ScanMode, type StepName } from '@/lib/scan/delta';
 import { desc } from 'drizzle-orm';
+import type { AnalysisScan, RegimeSnapshot } from '@/types';
 import type { RelativePerfPoint } from '@/components/company/SectorRelativeChart';
+
+export type { ScanMode };
 
 const STEP_LABELS: Record<StepName, string> = {
   news: 'news & sentiment',
@@ -37,6 +42,12 @@ export interface ScanState {
   currentIdx: number;
   totalTickers: number;
   message: string;
+  /** Requested mode for the current run */
+  mode: ScanMode;
+  /** Claude steps actually executed so far (skipped cached steps don't count) */
+  stepsRun: number;
+  /** Steps that would have run if nothing were cached */
+  stepsPossible: number;
   error?: string;
 }
 
@@ -49,6 +60,9 @@ let scanState: ScanState = {
   currentIdx: 0,
   totalTickers: 0,
   message: '',
+  mode: 'auto',
+  stepsRun: 0,
+  stepsPossible: 0,
 };
 
 let scanPromise: Promise<void> | null = null;
@@ -58,7 +72,7 @@ function pushEvent(event: ScanProgress['event'], data: Record<string, unknown>) 
   scanState.progress.push({ event, data });
 }
 
-function resetState() {
+function resetState(mode: ScanMode) {
   scanState = {
     running: true,
     progress: [],
@@ -67,21 +81,27 @@ function resetState() {
     currentIdx: 0,
     totalTickers: 0,
     message: 'Starting scan...',
+    mode,
+    stepsRun: 0,
+    stepsPossible: 0,
   };
 }
 
-/** Start a scan. Returns false if one is already running. */
-export function startScan(): boolean {
+/** Start a scan. Returns false if one is already running.
+ *  'auto' (default) re-runs only steps whose cache TTL has expired;
+ *  'full' forces every step to re-run. */
+export function startScan(mode: ScanMode = 'auto'): boolean {
   if (scanState.running) return false;
 
-  resetState();
-  scanPromise = runScan().finally(() => {
+  resetState(mode);
+  scanPromise = runScan(mode).finally(() => {
     scanState.running = false;
     scanPromise = null;
   });
 
   return true;
 }
+
 
 export function getScanState(): ScanState {
   return scanState;
@@ -102,7 +122,7 @@ export function getProgressSince(cursor: number): { events: ScanProgress[]; curs
 
 // ── Scan execution (lifted from route.ts) ──
 
-async function runScan() {
+async function runScan(mode: ScanMode) {
   try {
     // 1. Fetch all holdings
     const allHoldings = await db.select().from(holdings);
@@ -110,6 +130,13 @@ async function runScan() {
       scanState.message = 'No holdings found. Add stocks first.';
       pushEvent('error', { message: scanState.message });
       return;
+    }
+
+    // Latest scan per ticker — the basis for delta step selection
+    const priorScans = await db.select().from(analysisScans).orderBy(desc(analysisScans.scannedAt));
+    const priorByTicker = new Map<string, AnalysisScan>();
+    for (const row of priorScans) {
+      if (!priorByTicker.has(row.ticker)) priorByTicker.set(row.ticker, deserializeScan(row));
     }
 
     // 2. Fetch quotes
@@ -121,7 +148,7 @@ async function runScan() {
     scanState.message = 'Fetching market data...';
     pushEvent('progress', { message: scanState.message, currentTicker: 0, totalTickers: allHoldings.length });
 
-    const quotes = await fetchQuotes(allQuoteTickers);
+    const quotes = await getQuotes(allQuoteTickers);
     const spyQuote = quotes['SPY'];
 
     if (!spyQuote) {
@@ -141,16 +168,31 @@ async function runScan() {
         continue;
       }
 
+      const previous = priorByTicker.get(ticker) ?? null;
+      const stepsToRun = selectSteps({
+        mode,
+        previous,
+        holding,
+        dailyChangePercent: quote.changePercentage,
+      });
+      scanState.stepsPossible += ALL_STEPS.length;
+      scanState.stepsRun += stepsToRun.size;
+      const cachedCount = ALL_STEPS.length - stepsToRun.size;
+
       scanState.currentTicker = ticker;
       scanState.currentIdx = i + 1;
       scanState.currentStep = 'starting';
-      scanState.message = `Analyzing ${ticker} (${i + 1} of ${allHoldings.length})...`;
+      scanState.message = cachedCount > 0
+        ? `Analyzing ${ticker} (${i + 1} of ${allHoldings.length})... ${cachedCount} step${cachedCount === 1 ? '' : 's'} cached`
+        : `Analyzing ${ticker} (${i + 1} of ${allHoldings.length})...`;
       pushEvent('progress', {
         message: scanState.message,
         ticker,
         currentTicker: i + 1,
         totalTickers: allHoldings.length,
         step: 'starting',
+        stepsToRun: [...stepsToRun],
+        cachedSteps: cachedCount,
       });
 
       try {
@@ -201,6 +243,8 @@ async function runScan() {
           sectorEtfQuote,
           relativePerfData,
           pePercentile,
+          stepsToRun,
+          previous,
           onStep: (step) => {
             scanState.currentStep = step;
             scanState.message = `Analyzing ${ticker} (${i + 1} of ${allHoldings.length})... ${STEP_LABELS[step]}`;
@@ -235,10 +279,22 @@ async function runScan() {
     }
     const latestScansList = [...latestByTicker.values()].map(deserializeScan);
 
+    // Regime is a market-wide signal — reuse a recent snapshot on a delta scan
+    // rather than paying for another web-search call. Anomaly detection always
+    // re-runs; it is cheap and depends on today's prices.
+    const [lastRegime] = await db.select().from(regimeSnapshots)
+      .orderBy(desc(regimeSnapshots.snappedAt)).limit(1);
+    const reuseRegime = mode === 'auto' && lastRegime
+      ? !isStale(lastRegime.snappedAt, REGIME_TTL_HOURS)
+      : false;
+    scanState.stepsPossible += 1;
+    if (!reuseRegime) scanState.stepsRun += 1;
+
     await analyzePortfolio({
       holdings: allHoldings,
       quotes,
       latestScans: latestScansList,
+      cachedRegime: reuseRegime ? (lastRegime as RegimeSnapshot) : null,
       onStep: (step) => {
         scanState.currentStep = step;
         scanState.message = step === 'regime' ? 'Checking market regime...' : 'Detecting anomalies...';
@@ -246,10 +302,16 @@ async function runScan() {
       },
     });
 
-    scanState.message = `Scan complete — analyzed ${allHoldings.length} stocks`;
+    const skipped = scanState.stepsPossible - scanState.stepsRun;
+    scanState.message = skipped > 0
+      ? `Scan complete — analyzed ${allHoldings.length} stocks (${skipped} cached step${skipped === 1 ? '' : 's'} skipped)`
+      : `Scan complete — analyzed ${allHoldings.length} stocks`;
     pushEvent('complete', {
       scannedCount: allHoldings.length,
       message: scanState.message,
+      mode,
+      stepsRun: scanState.stepsRun,
+      stepsSkipped: skipped,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

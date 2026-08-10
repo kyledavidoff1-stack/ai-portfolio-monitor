@@ -1,0 +1,2 @@
+# Keeps the local database directory in the repo.
+# The database files themselves are gitignored.

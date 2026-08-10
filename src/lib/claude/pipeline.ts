@@ -13,12 +13,15 @@ import { buildSectorRelativePrompt } from './prompts/sector-relative';
 import { buildBucketAssignmentPrompt } from './prompts/bucket-assignment';
 import { buildThesisCheckPrompt } from './prompts/thesis-check';
 import { buildCatalystScanPrompt } from './prompts/catalyst-scan';
-import type { Holding, NewsSentiment, Catalyst, ThesisCheck, DriverAnalysis } from '@/types';
+import type { Holding, NewsSentiment, Catalyst, ThesisCheck, DriverAnalysis, AnalysisScan } from '@/types';
 import type { QuoteData } from '@/lib/fmp/quotes';
 import type { FundamentalsBlob } from '@/lib/fmp/fundamentals-cache';
 import type { RelativePerfPoint } from '@/components/company/SectorRelativeChart';
 
-export type StepName = 'news' | 'fundamentals' | 'sector' | 'bucket' | 'thesis' | 'catalysts';
+// Step identities live in the (dependency-free) delta module so the scan
+// scheduler can reason about them without importing the Claude client.
+import { isDeltaSelection, type StepName } from '@/lib/scan/delta';
+export { ALL_STEPS, type StepName } from '@/lib/scan/delta';
 
 export interface AnalyzeStockParams {
   ticker: string;
@@ -30,17 +33,31 @@ export interface AnalyzeStockParams {
   relativePerfData: RelativePerfPoint[];
   pePercentile: number | null;
   onStep?: (step: StepName) => void;
+  /** Steps to actually run. Omit to run everything (full scan). Steps not in
+   *  the set reuse the output stored in `previous`. */
+  stepsToRun?: Set<StepName>;
+  /** Latest deserialized scan for this ticker — source of reused step outputs. */
+  previous?: AnalysisScan | null;
 }
 
 export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   const {
     ticker, holding, quote, fundamentalsBlob, spyQuote, sectorEtfQuote,
-    relativePerfData, pePercentile, onStep,
+    relativePerfData, pePercentile, onStep, stepsToRun, previous,
   } = params;
 
   const companyName = holding.companyName ?? ticker;
   const sector = holding.sector ?? 'Unknown';
   const sectorEtf = holding.sectorEtf ?? 'XLK';
+
+  const shouldRun = (step: StepName) => !stepsToRun || stepsToRun.has(step);
+  const isDelta = !!stepsToRun && isDeltaSelection(stepsToRun);
+  const prevTs = previous?.stepTimestamps ?? {};
+  const stepTimestamps: Record<string, string> = {};
+  const now = new Date().toISOString();
+  const stamp = (step: StepName, ran: boolean) => {
+    stepTimestamps[step] = ran ? now : prevTs[step] ?? previous?.scannedAt ?? now;
+  };
 
   // Partial results — fill in as steps complete
   let newsSentiment: NewsSentiment | null = null;
@@ -52,21 +69,29 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   let catalysts: Catalyst[] | null = null;
 
   // ── Step 1: News & Sentiment ──
-  onStep?.('news');
-  try {
-    const prompt = buildNewsSentimentPrompt({ ticker, companyName, sector });
-    newsSentiment = await callClaude<NewsSentiment>({
-      system: prompt.system,
-      userMessage: prompt.userMessage,
-      webSearch: prompt.webSearch,
-      maxSearches: prompt.maxSearches,
-    });
-  } catch (err) {
-    console.warn(`[Pipeline] Step 1 (news) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+  if (shouldRun('news')) {
+    onStep?.('news');
+    stamp('news', true);
+    try {
+      const prompt = buildNewsSentimentPrompt({ ticker, companyName, sector });
+      newsSentiment = await callClaude<NewsSentiment>({
+        system: prompt.system,
+        userMessage: prompt.userMessage,
+        webSearch: prompt.webSearch,
+        maxSearches: prompt.maxSearches,
+      });
+    } catch (err) {
+      console.warn(`[Pipeline] Step 1 (news) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    }
+  } else {
+    newsSentiment = previous?.newsSentiment ?? null;
+    stamp('news', false);
   }
 
   // ── Step 2: Fundamental Analysis ──
+  if (shouldRun('fundamentals')) {
   onStep?.('fundamentals');
+  stamp('fundamentals', true);
   try {
     const prompt = buildFundamentalAnalysisPrompt({
       ticker,
@@ -84,9 +109,22 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   } catch (err) {
     console.warn(`[Pipeline] Step 2 (fundamentals) failed for ${ticker}:`, err instanceof Error ? err.message : err);
   }
+  } else {
+    const fm = previous?.fiveMetrics;
+    fundamentalOutlook = fm ? {
+      revenue: fm.revenue?.forwardOutlook ?? '',
+      profitability: fm.profitability?.forwardOutlook ?? '',
+      cashGeneration: fm.cashGeneration?.forwardOutlook ?? '',
+      valuation: fm.valuation?.forwardOutlook ?? '',
+      financialHealth: fm.financialHealth?.forwardOutlook ?? '',
+    } : null;
+    stamp('fundamentals', false);
+  }
 
   // ── Step 3: Sector Relative ──
+  if (shouldRun('sector')) {
   onStep?.('sector');
+  stamp('sector', true);
   try {
     // Compute relative perf summaries from chart data
     const perfData = relativePerfData;
@@ -128,9 +166,19 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   } catch (err) {
     console.warn(`[Pipeline] Step 3 (sector) failed for ${ticker}:`, err instanceof Error ? err.message : err);
   }
+  } else {
+    const sr = previous?.sectorRelative;
+    sectorRelativeResult = sr ? {
+      forwardOutlook: sr.forwardOutlook,
+      premiumTrend: sr.premiumTrend,
+      relativeStrength: '',
+    } : null;
+    stamp('sector', false);
+  }
 
-  // ── Step 4: Bucket Assignment ──
+  // ── Step 4: Bucket Assignment (always fresh — depends on today's tape) ──
   onStep?.('bucket');
+  stamp('bucket', true);
   try {
     const dailyChange = quote.changePercentage;
     const spyChange = spyQuote.changePercentage;
@@ -175,7 +223,9 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   }
 
   // ── Step 5: Thesis Check ──
+  if (shouldRun('thesis')) {
   onStep?.('thesis');
+  stamp('thesis', true);
   try {
     if (holding.thesis?.trim()) {
       const prompt = buildThesisCheckPrompt({
@@ -200,9 +250,15 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   } catch (err) {
     console.warn(`[Pipeline] Step 5 (thesis) failed for ${ticker}:`, err instanceof Error ? err.message : err);
   }
+  } else {
+    thesisCheck = previous?.thesisAnalysis ?? null;
+    stamp('thesis', false);
+  }
 
   // ── Step 6: Catalyst Scan ──
+  if (shouldRun('catalysts')) {
   onStep?.('catalysts');
+  stamp('catalysts', true);
   try {
     const prompt = buildCatalystScanPrompt({
       ticker,
@@ -219,31 +275,40 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   } catch (err) {
     console.warn(`[Pipeline] Step 6 (catalysts) failed for ${ticker}:`, err instanceof Error ? err.message : err);
   }
+  } else {
+    catalysts = previous?.catalysts ?? null;
+    stamp('catalysts', false);
+  }
 
   // ── Build sector relative data for DB ──
-  const sectorRelativeData = sectorRelativeResult ? {
-    forwardPE: { stock: 0, sectorMedian: 0, percentile: pePercentile ?? 0 },
-    premiumTrend: sectorRelativeResult.premiumTrend as 'expanding' | 'compressing' | 'stable',
-    correlationToSector30d: 0,
-    correlationToSector90d: 0,
-    relativePerformance: [],
-    forwardOutlook: sectorRelativeResult.forwardOutlook,
-  } : null;
+  // When the sector step was skipped, carry the previous blob forward intact
+  // (the rebuild below would zero out fields the prompt doesn't produce).
+  const sectorRelativeData = !shouldRun('sector')
+    ? previous?.sectorRelative ?? null
+    : sectorRelativeResult ? {
+        forwardPE: { stock: 0, sectorMedian: 0, percentile: pePercentile ?? 0 },
+        premiumTrend: sectorRelativeResult.premiumTrend as 'expanding' | 'compressing' | 'stable',
+        correlationToSector30d: 0,
+        correlationToSector90d: 0,
+        relativePerformance: [],
+        forwardOutlook: sectorRelativeResult.forwardOutlook,
+      } : null;
 
   // ── Build five metrics with forward outlooks ──
-  const fiveMetrics = fundamentalOutlook ? {
-    revenue: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.revenue },
-    profitability: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.profitability },
-    cashGeneration: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.cashGeneration },
-    valuation: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.valuation },
-    financialHealth: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.financialHealth },
-  } : null;
+  const fiveMetrics = !shouldRun('fundamentals')
+    ? previous?.fiveMetrics ?? null
+    : fundamentalOutlook ? {
+        revenue: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.revenue },
+        profitability: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.profitability },
+        cashGeneration: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.cashGeneration },
+        valuation: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.valuation },
+        financialHealth: { value: '', context: '', trend: 'flat' as const, forwardOutlook: fundamentalOutlook.financialHealth },
+      } : null;
 
   // ── Store results ──
-  const now = new Date().toISOString();
   await db.insert(analysisScans).values({
     ticker,
-    scanType: 'full',
+    scanType: isDelta ? 'delta' : 'full',
     bucketPrimary: bucketResult?.bucketPrimary ?? null,
     bucketSecondary: bucketResult?.bucketSecondary ?? null,
     bucketRationale: bucketResult?.bucketRationale ?? null,
@@ -256,6 +321,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
     sectorRelative: sectorRelativeData ? JSON.stringify(sectorRelativeData) : null,
     driverAnalysis: driverAnalysis ? JSON.stringify(driverAnalysis) : null,
     fullAnalysis: null,
+    stepTimestamps: JSON.stringify(stepTimestamps),
     scannedAt: now,
   });
 }

@@ -93,10 +93,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
   // Extract AI scan data
   const sentiment: NewsSentiment | null = latestScan?.newsSentiment ?? null;
   const driverAnalysis: DriverAnalysis | null = latestScan?.driverAnalysis ?? null;
-  const thesisCheck: ThesisCheck | null = useMemo(() => {
-    if (!latestScan?.thesisAnalysis) return null;
-    try { return JSON.parse(latestScan.thesisAnalysis) as ThesisCheck; } catch { return null; }
-  }, [latestScan?.thesisAnalysis]);
+  const thesisCheck: ThesisCheck | null = latestScan?.thesisAnalysis ?? null;
   const catalysts: Catalyst[] = latestScan?.catalysts ?? [];
   const sectorRelForward: string | null = latestScan?.sectorRelative?.forwardOutlook ?? null;
 
@@ -643,8 +640,8 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
               <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out flex-1 min-h-0 ${
                 revenueCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
               }`}>
-                <div className={`min-h-0 ${revenueCollapsed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-                  <div className="flex-1 min-h-0 flex flex-col px-4 pt-2 pb-3">
+                <div className={`min-h-0 flex flex-col ${revenueCollapsed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                  <div className="flex-1 min-h-[320px] flex flex-col px-4 pt-2 pb-3">
                     <div className="flex-1 min-h-0">
                       <SankeyChart nodes={sankeyData?.nodes} links={sankeyData?.links} />
                     </div>
@@ -1280,28 +1277,49 @@ function buildSankeyFromIncome(
     }
   }
 
+  // Minimum link width so very small (but real) flows stay visible; also
+  // guards d3-sankey against zero/negative values, which break the layout.
+  const flow = (n: number) => Math.max(0.1, toB(n));
+
   const cogsIdx = nodes.length;
   nodes.push({ name: 'Cost of sales', group: 'cost', yoy: 'n/a', yoyPositive: null });
+  links.push({ source: revIdx, target: cogsIdx, value: flow(cogs) });
+
+  // Negative gross profit (COGS exceeds revenue): the whole flow ends at cost
+  // of sales — adding downstream profit nodes would create unlinked orphans
+  // and negative link values that break the layout.
+  if (q.grossProfit <= 0) return { nodes, links };
+
   const gpIdx = nodes.length;
   nodes.push({ name: 'Gross profit', group: 'profit', ...yoyOf(q.grossProfit, py?.grossProfit) });
-  const opexIdx = nodes.length;
-  nodes.push({ name: 'Op. expenses', group: 'cost', yoy: 'n/a', yoyPositive: null });
+  links.push({ source: revIdx, target: gpIdx, value: flow(q.grossProfit) });
+
+  if (q.operatingIncome <= 0) {
+    // Operating loss: opex consumes all of gross profit and the flow stops.
+    const opexIdx = nodes.length;
+    nodes.push({ name: 'Op. expenses', group: 'cost', yoy: 'n/a', yoyPositive: null });
+    links.push({ source: gpIdx, target: opexIdx, value: flow(q.grossProfit) });
+    return { nodes, links };
+  }
+
   const opIncIdx = nodes.length;
   nodes.push({ name: 'Op. income', group: 'profit', ...yoyOf(q.operatingIncome, py?.operatingIncome) });
-  const taxIdx = nodes.length;
-  nodes.push({ name: 'Tax & other', group: 'tax', yoy: 'n/a', yoyPositive: null });
-  const niIdx = nodes.length;
-  nodes.push({ name: 'Net income', group: 'profit', ...yoyOf(q.netIncome, py?.netIncome) });
+  links.push({ source: gpIdx, target: opIncIdx, value: flow(q.operatingIncome) });
+  if (opex > 0) {
+    const opexIdx = nodes.length;
+    nodes.push({ name: 'Op. expenses', group: 'cost', yoy: 'n/a', yoyPositive: null });
+    links.push({ source: gpIdx, target: opexIdx, value: flow(opex) });
+  }
 
-  // Revenue → COGS + Gross Profit
-  links.push({ source: revIdx, target: cogsIdx, value: Math.max(0.1, toB(cogs)) });
-  links.push({ source: revIdx, target: gpIdx, value: toB(q.grossProfit) });
-
-  if (q.operatingIncome > 0) {
-    if (opex > 0) links.push({ source: gpIdx, target: opexIdx, value: toB(opex) });
-    links.push({ source: gpIdx, target: opIncIdx, value: toB(q.operatingIncome) });
-    if (taxOth > 0) links.push({ source: opIncIdx, target: taxIdx, value: toB(taxOth) });
-    if (q.netIncome > 0) links.push({ source: opIncIdx, target: niIdx, value: toB(q.netIncome) });
+  if (taxOth > 0) {
+    const taxIdx = nodes.length;
+    nodes.push({ name: 'Tax & other', group: 'tax', yoy: 'n/a', yoyPositive: null });
+    links.push({ source: opIncIdx, target: taxIdx, value: flow(taxOth) });
+  }
+  if (q.netIncome > 0) {
+    const niIdx = nodes.length;
+    nodes.push({ name: 'Net income', group: 'profit', ...yoyOf(q.netIncome, py?.netIncome) });
+    links.push({ source: opIncIdx, target: niIdx, value: flow(q.netIncome) });
   }
 
   return { nodes, links };
