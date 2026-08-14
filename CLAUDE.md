@@ -16,6 +16,7 @@ npm run build        # production build — also the type-check gate
 npm start            # serve a production build
 npm test             # node:test suite (delta step selection, holdings CSV)
 npm run seed:demo    # load demo data — REPLACES the database contents
+npm run export:holdings  # dump holdings to CSV straight from the DB (no server)
 
 npm run db:generate  # drizzle-kit: emit SQL migration from schema.ts
 npm run db:migrate   # apply migrations to ./data/portfolio.db
