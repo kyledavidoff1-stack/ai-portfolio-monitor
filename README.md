@@ -58,6 +58,21 @@ The demo numbers are invented — including headlines and analyst actions attrib
 to real publications and firms. It's a fixture for exploring the interface, not
 investment research, and not something to share as though it were real.
 
+### The example portfolio
+
+The seeded holdings live in **[`examples/holdings.csv`](examples/holdings.csv)** —
+readable right here on GitHub, and the source of truth for what `seed:demo` loads.
+Edit it and re-seed to change the demo portfolio, or point the seeder at your own
+export:
+
+```bash
+HOLDINGS_CSV=./my-holdings.csv npm run seed:demo
+```
+
+Tickers beyond the five shipped examples get price history generated for them;
+they simply have no pre-baked financials or AI scan results, which the app renders
+as empty states.
+
 ---
 
 ## Setup

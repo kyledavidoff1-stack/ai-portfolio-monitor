@@ -1,0 +1,6 @@
+ticker,shares,cost_basis,company_name,sector,industry,sector_etf,beta,thesis
+AMZN,30,135,"Amazon.com, Inc.",Consumer Cyclical,Internet Retail,XLY,1.18,Retail margins structurally re-rate as regional fulfillment and ads mix in; AWS re-accelerates on AI workloads. FCF inflection is underappreciated.
+MSFT,25,310,Microsoft Corporation,Technology,Software — Infrastructure,XLK,0.95,Azure + Copilot monetization turns the installed base into a compounding AI annuity. Durable 15%+ EPS growth with fortress balance sheet.
+NVDA,40,61.2,NVIDIA Corporation,Technology,Semiconductors,SOXX,1.72,AI capex supercycle has years to run. NVDA keeps its accelerator moat via CUDA lock-in and networking attach; data-center revenue can double again by FY28.
+UNH,12,480,UnitedHealth Group,Healthcare,Healthcare Plans,XLV,0.55,Medicare Advantage cost trend normalizes by 2027; Optum keeps compounding. Multiple recovers from depressed levels as utilization stabilizes.
+XOM,60,102,Exxon Mobil Corporation,Energy,Oil & Gas Integrated,XLE,0.62,Low-cost Permian + Guyana barrels keep FCF strong even at $65 WTI. Capital discipline funds buybacks; downside protected by dividend.

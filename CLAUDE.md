@@ -52,6 +52,11 @@ DATABASE_URL=./data/demo.db npm run seed:demo
 DATABASE_URL=./data/demo.db npm run dev
 ```
 
+The seeded holdings come from `examples/holdings.csv` — the single source of truth for the demo
+portfolio, kept as readable CSV so it can be reviewed and edited without touching the script.
+`HOLDINGS_CSV=./other.csv npm run seed:demo` seeds a different one. Tickers outside the five shipped
+examples get generated price history but no financial or scan fixtures, which render as empty states.
+
 The fixture's figures are invented, including headlines and analyst actions attributed to real
 publications and firms. Never present it as real data.
 
