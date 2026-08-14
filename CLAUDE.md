@@ -185,6 +185,18 @@ Lab shows the *raw* prompt's behavior. That divergence is intentional.
 
 ---
 
+## Holdings data is the user's, and it is not in git
+
+`data/portfolio.db` is gitignored and holds real positions, cost basis, and
+hand-written theses. Never commit it, and never suggest committing it — this repo
+is built to be open-sourced, and git history is permanent. The backup path is
+**Export CSV** (`GET /api/holdings/csv`), which round-trips through the CSV
+importer. Parsing and quoting live in `src/lib/csv.ts` (RFC 4180, so thesis prose
+containing commas and quotes survives); `tests/csv.test.ts` covers it.
+
+Import fills gaps from FMP but prefers values in the file, so a restore works with
+no API key. Keep that property.
+
 ## Database
 
 SQLite via better-sqlite3 + Drizzle at `./data/portfolio.db` (WAL mode, so reads work during a

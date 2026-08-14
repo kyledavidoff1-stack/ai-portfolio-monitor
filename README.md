@@ -133,6 +133,22 @@ reloading the page.
 
 ---
 
+## Backing up your holdings
+
+Your portfolio lives only in `data/portfolio.db` on your machine — it is
+gitignored and never leaves your computer. To keep a portable copy, use
+**Export CSV** in the Holdings panel (or `GET /api/holdings/csv`).
+
+The export includes shares, cost basis, sector data, and your thesis text, and
+restores through **Add ticker › Upload CSV**. Restoring works without an FMP key,
+since values in the file are used directly and FMP is only consulted to fill gaps.
+
+The importer also accepts plain broker exports and bare ticker lists — a header
+row is matched by column name when present, otherwise `ticker,shares,cost_basis`
+is assumed.
+
+---
+
 ## Architecture
 
 ```

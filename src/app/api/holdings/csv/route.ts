@@ -1,32 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { holdings } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { fetchCompanyProfile } from '@/lib/fmp/fundamentals';
+import { getSectorEtf } from '@/lib/config/sector-etf-map';
+import { parseHoldingsCsv, toCsvRow, HOLDINGS_CSV_COLUMNS } from '@/lib/csv';
 
-// Parse CSV text — expects columns: ticker[,shares][,cost_basis]
-// First row may be a header; we detect by checking if first cell is non-numeric
-function parseCsv(text: string): { ticker: string; shares?: number; costBasis?: number }[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  const result: { ticker: string; shares?: number; costBasis?: number }[] = [];
+export const dynamic = 'force-dynamic';
 
-  for (const line of lines) {
-    const cells = line.split(',').map((c) => c.trim());
-    const first = cells[0].toUpperCase();
-    // Skip header row or empty
-    if (!first || first === 'TICKER' || first === 'SYMBOL') continue;
-    // Skip obvious non-tickers (numbers, long strings)
-    if (/^\d/.test(first) || first.length > 10) continue;
+// GET /api/holdings/csv — download all holdings as CSV.
+// Includes thesis text, so this doubles as a portable backup that can be
+// restored through the POST importer below.
+export async function GET() {
+  const rows = await db.select().from(holdings).orderBy(asc(holdings.ticker));
 
-    const entry: { ticker: string; shares?: number; costBasis?: number } = { ticker: first };
-    if (cells[1] && !isNaN(Number(cells[1]))) entry.shares = Number(cells[1]);
-    if (cells[2] && !isNaN(Number(cells[2]))) entry.costBasis = Number(cells[2]);
-    result.push(entry);
-  }
-  return result;
+  const lines = [
+    toCsvRow([...HOLDINGS_CSV_COLUMNS]),
+    ...rows.map((h) => toCsvRow([
+      h.ticker,
+      h.shares,
+      h.costBasis,
+      h.companyName,
+      h.sector,
+      h.industry,
+      h.sectorEtf,
+      h.beta,
+      h.thesis,
+    ])),
+  ];
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  return new NextResponse(lines.join('\n') + '\n', {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="portfolio-monitor-holdings-${stamp}.csv"`,
+      'Cache-Control': 'no-store',
+    },
+  });
 }
 
-// POST /api/holdings/csv — bulk add from CSV upload
+// POST /api/holdings/csv — bulk add from CSV upload.
+// Values present in the CSV win; FMP is consulted only to fill the gaps, so an
+// exported backup restores fully even with no API key configured.
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -35,8 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const text = await (file as File).text();
-    const rows = parseCsv(text);
+    const rows = parseHoldingsCsv(await (file as File).text());
 
     if (rows.length === 0) {
       return NextResponse.json({ error: 'No valid tickers found in CSV' }, { status: 400 });
@@ -45,39 +59,49 @@ export async function POST(req: NextRequest) {
     const results: { ticker: string; status: 'added' | 'skipped' | 'error'; message?: string }[] = [];
 
     for (const row of rows) {
-      const ticker = row.ticker.toUpperCase();
+      const ticker = row.ticker;
 
-      // Skip duplicates
       const existing = await db.select().from(holdings).where(eq(holdings.ticker, ticker));
       if (existing.length > 0) {
         results.push({ ticker, status: 'skipped', message: 'already exists' });
         continue;
       }
 
-      try {
-        const profile = await fetchCompanyProfile(ticker);
-        if (!profile) {
-          results.push({ ticker, status: 'error', message: 'not found in FMP' });
-          continue;
+      // Only reach for FMP when the CSV didn't supply the profile fields.
+      const needsProfile = !row.companyName || !row.sector;
+      let profile: Awaited<ReturnType<typeof fetchCompanyProfile>> = null;
+      if (needsProfile) {
+        try {
+          profile = await fetchCompanyProfile(ticker);
+        } catch {
+          profile = null;   // no key, rate limited, or thin coverage — fall through
         }
+      }
 
+      const sector = row.sector ?? profile?.sector ?? null;
+
+      try {
         const now = new Date().toISOString();
         await db.insert(holdings).values({
-          ticker: profile.ticker,
-          companyName: profile.companyName,
+          ticker,
+          companyName: row.companyName ?? profile?.companyName ?? ticker,
           shares: row.shares ?? null,
           costBasis: row.costBasis ?? null,
-          sector: profile.sector,
-          industry: profile.industry,
-          sectorEtf: profile.sectorEtf,
-          beta: profile.beta,
-          thesis: null,
+          sector,
+          industry: row.industry ?? profile?.industry ?? null,
+          sectorEtf: row.sectorEtf ?? profile?.sectorEtf ?? (sector ? getSectorEtf(sector, row.industry) : null),
+          beta: row.beta ?? profile?.beta ?? null,
+          thesis: row.thesis ?? null,
           addedAt: now,
           updatedAt: now,
         });
-        results.push({ ticker, status: 'added' });
+        results.push({
+          ticker,
+          status: 'added',
+          message: needsProfile && !profile ? 'added without company data (FMP unavailable)' : undefined,
+        });
       } catch {
-        results.push({ ticker, status: 'error', message: 'FMP fetch failed' });
+        results.push({ ticker, status: 'error', message: 'could not save holding' });
       }
     }
 
