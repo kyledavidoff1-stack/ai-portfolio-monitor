@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "node --experimental-strip-types --no-warnings --import ./tests/register-hook.mjs --test \"tests/*.test.ts\"",
     "seed:demo": "node scripts/seed-demo.cjs",
+    "export:holdings": "node scripts/export-holdings.cjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push"

@@ -151,8 +151,16 @@ reloading the page.
 ## Backing up your holdings
 
 Your portfolio lives only in `data/portfolio.db` on your machine — it is
-gitignored and never leaves your computer. To keep a portable copy, use
-**Export CSV** in the Holdings panel (or `GET /api/holdings/csv`).
+gitignored and never leaves your computer. To keep a portable copy:
+
+```bash
+npm run export:holdings              # → ./my-holdings.csv
+npm run export:holdings -- out.csv   # or name it yourself
+```
+
+This reads the database directly, so it works whether or not the app is running.
+The same export is available in the app as **Export CSV** in the Holdings panel
+(`GET /api/holdings/csv`).
 
 The export includes shares, cost basis, sector data, and your thesis text, and
 restores through **Add ticker › Upload CSV**. Restoring works without an FMP key,
