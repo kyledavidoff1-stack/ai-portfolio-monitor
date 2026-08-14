@@ -34,33 +34,72 @@ const LAST_TRADING_DAY = anchor.toISOString().slice(0, 10);
 const NOW = new Date(Date.now() - 90 * 60 * 1000).toISOString(); // ~90 min ago
 
 // ── Holdings ──────────────────────────────────────────────────────────────────
-const HOLDINGS = [
-  {
-    ticker: 'NVDA', companyName: 'NVIDIA Corporation', shares: 40, costBasis: 61.2,
-    sector: 'Technology', industry: 'Semiconductors', sectorEtf: 'SOXX', beta: 1.72,
-    thesis: 'AI capex supercycle has years to run. NVDA keeps its accelerator moat via CUDA lock-in and networking attach; data-center revenue can double again by FY28.',
-  },
-  {
-    ticker: 'MSFT', companyName: 'Microsoft Corporation', shares: 25, costBasis: 310,
-    sector: 'Technology', industry: 'Software — Infrastructure', sectorEtf: 'XLK', beta: 0.95,
-    thesis: 'Azure + Copilot monetization turns the installed base into a compounding AI annuity. Durable 15%+ EPS growth with fortress balance sheet.',
-  },
-  {
-    ticker: 'AMZN', companyName: 'Amazon.com, Inc.', shares: 30, costBasis: 135,
-    sector: 'Consumer Cyclical', industry: 'Internet Retail', sectorEtf: 'XLY', beta: 1.18,
-    thesis: 'Retail margins structurally re-rate as regional fulfillment and ads mix in; AWS re-accelerates on AI workloads. FCF inflection is underappreciated.',
-  },
-  {
-    ticker: 'XOM', companyName: 'Exxon Mobil Corporation', shares: 60, costBasis: 102,
-    sector: 'Energy', industry: 'Oil & Gas Integrated', sectorEtf: 'XLE', beta: 0.62,
-    thesis: 'Low-cost Permian + Guyana barrels keep FCF strong even at $65 WTI. Capital discipline funds buybacks; downside protected by dividend.',
-  },
-  {
-    ticker: 'UNH', companyName: 'UnitedHealth Group', shares: 12, costBasis: 480,
-    sector: 'Healthcare', industry: 'Healthcare Plans', sectorEtf: 'XLV', beta: 0.55,
-    thesis: 'Medicare Advantage cost trend normalizes by 2027; Optum keeps compounding. Multiple recovers from depressed levels as utilization stabilizes.',
-  },
-];
+// Read from a CSV so the demo portfolio is human-readable and editable in the
+// repo (examples/holdings.csv) rather than buried in this script. Point
+// HOLDINGS_CSV at your own export to seed a different portfolio.
+
+/** Minimal RFC 4180 reader — thesis text contains commas and em dashes. */
+function readCsv(file) {
+  const text = fs.readFileSync(file, 'utf8').replace(/^﻿/, '');
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else quoted = false;
+      } else field += c;
+      continue;
+    }
+    if (c === '"') { quoted = true; continue; }
+    if (c === ',') { row.push(field); field = ''; continue; }
+    if (c === '\r') continue;
+    if (c === '\n') {
+      row.push(field);
+      if (row.some((f) => f.trim())) rows.push(row);
+      row = []; field = '';
+      continue;
+    }
+    field += c;
+  }
+  row.push(field);
+  if (row.some((f) => f.trim())) rows.push(row);
+  return rows;
+}
+
+const HOLDINGS_CSV = process.env.HOLDINGS_CSV
+  ?? path.join(__dirname, '..', 'examples', 'holdings.csv');
+
+if (!fs.existsSync(HOLDINGS_CSV)) {
+  console.error(`No holdings CSV at ${HOLDINGS_CSV}`);
+  process.exit(1);
+}
+
+const csvRows = readCsv(HOLDINGS_CSV);
+const header = csvRows[0].map((h) => h.trim().toLowerCase());
+const col = (r, name) => {
+  const i = header.indexOf(name);
+  const v = i >= 0 ? r[i]?.trim() : '';
+  return v === '' ? null : v;
+};
+const numOr = (v) => (v == null ? null : Number(v));
+
+const HOLDINGS = csvRows.slice(1).map((r) => ({
+  ticker: (col(r, 'ticker') ?? '').toUpperCase(),
+  companyName: col(r, 'company_name'),
+  shares: numOr(col(r, 'shares')),
+  costBasis: numOr(col(r, 'cost_basis')),
+  sector: col(r, 'sector'),
+  industry: col(r, 'industry'),
+  sectorEtf: col(r, 'sector_etf'),
+  beta: numOr(col(r, 'beta')),
+  thesis: col(r, 'thesis'),
+})).filter((h) => h.ticker);
+
+if (HOLDINGS.length === 0) {
+  console.error(`No holdings parsed from ${HOLDINGS_CSV}`);
+  process.exit(1);
+}
 
 db.prepare('DELETE FROM holdings').run();
 const addedAt = new Date(Date.now() - 120 * 86400_000).toISOString();
@@ -91,20 +130,39 @@ function gauss() { return (rand() + rand() + rand() + rand() - 2) / 1.2; }
 // SPY market returns
 const mktRet = DAYS.map(() => 0.0004 + 0.008 * gauss());
 
-const SERIES = [
-  // [ticker, endPrice, beta, idioVol, drift]
+// Benchmarks and sector ETFs are fixed; holdings come from the CSV.
+// [ticker, endPrice, beta, idioVol, drift]
+const BENCHMARK_SERIES = [
   ['SPY',  652.4, 1.00, 0.000, 0.0000],
-  ['NVDA', 186.3, 1.72, 0.018, 0.0009],
-  ['MSFT', 512.8, 0.95, 0.008, 0.0004],
-  ['AMZN', 228.6, 1.18, 0.012, 0.0002],
-  ['XOM',  114.2, 0.62, 0.010, 0.0001],
-  ['UNH',  271.5, 0.55, 0.014, -0.0006],
   ['SOXX', 248.9, 1.55, 0.010, 0.0006],
   ['XLK',  268.3, 1.20, 0.006, 0.0004],
   ['XLY',  224.1, 1.05, 0.007, 0.0001],
   ['XLE',   96.7, 0.55, 0.009, 0.0000],
   ['XLV',  138.2, 0.50, 0.007, -0.0002],
 ];
+
+// Closing prices for the shipped example holdings. A ticker added to the CSV
+// without an entry here still gets a price series, just an arbitrary level.
+const KNOWN_PRICES = { NVDA: 186.3, MSFT: 512.8, AMZN: 228.6, XOM: 114.2, UNH: 271.5 };
+const IDIO_VOL = { NVDA: 0.018, MSFT: 0.008, AMZN: 0.012, XOM: 0.010, UNH: 0.014 };
+const DRIFT = { NVDA: 0.0009, MSFT: 0.0004, AMZN: 0.0002, XOM: 0.0001, UNH: -0.0006 };
+
+const holdingSeries = HOLDINGS.map((h) => [
+  h.ticker,
+  KNOWN_PRICES[h.ticker] ?? 100,
+  h.beta ?? 1.0,
+  IDIO_VOL[h.ticker] ?? 0.012,
+  DRIFT[h.ticker] ?? 0.0002,
+]);
+
+// Sector ETFs referenced by the CSV but missing from the benchmark list still
+// need a series, or the sector-relative panel has nothing to plot against.
+const benchmarkTickers = new Set(BENCHMARK_SERIES.map((s) => s[0]));
+const extraEtfs = [...new Set(HOLDINGS.map((h) => h.sectorEtf).filter(Boolean))]
+  .filter((etf) => !benchmarkTickers.has(etf))
+  .map((etf) => [etf, 150, 1.0, 0.007, 0.0002]);
+
+const SERIES = [...BENCHMARK_SERIES, ...holdingSeries, ...extraEtfs];
 
 db.prepare('DELETE FROM price_history').run();
 const insPrice = db.prepare('INSERT OR IGNORE INTO price_history (ticker, date, close, volume) VALUES (?, ?, ?, ?)');
@@ -299,7 +357,12 @@ const FUND_SPECS = {
 
 db.prepare('DELETE FROM fundamentals').run();
 const insFund = db.prepare('INSERT INTO fundamentals (ticker, data, fetched_at) VALUES (?, ?, ?)');
+// Financial fixtures exist only for the shipped example tickers; a CSV holding
+// without one simply has no cached fundamentals, which the app renders as an
+// empty state rather than an error.
+const seededTickers = new Set(HOLDINGS.map((h) => h.ticker));
 for (const [sym, spec] of Object.entries(FUND_SPECS)) {
+  if (!seededTickers.has(sym)) continue;
   const { income, cashFlow, balanceSheet, keyMetrics } = buildQuarters(spec.fin);
   const { annualIncome, annualCashFlow } = annualize(income, cashFlow);
   const est = estimates(sym, spec.fin.revTTM, spec.fin.eps * 4, spec.g);
@@ -604,6 +667,7 @@ function priorVariant(s) {
 
 let scanIdx = 0;
 for (const [sym, s] of Object.entries(SCANS)) {
+  if (!seededTickers.has(sym)) continue;
   const prevAt = new Date(Date.parse(NOW) - 26 * 3600_000).toISOString();
   const p = priorVariant(s);
   insScan.run(

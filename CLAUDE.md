@@ -12,22 +12,66 @@ file — nothing leaves the machine except API calls.
 
 ```bash
 npm run dev          # clears .next cache, then starts on :3000
-npm run build        # production build — also the only type-check gate (see below)
+npm run build        # production build — also the type-check gate
 npm start            # serve a production build
+npm test             # node:test suite (delta step selection, holdings CSV)
+npm run seed:demo    # load demo data — REPLACES the database contents
 
 npm run db:generate  # drizzle-kit: emit SQL migration from schema.ts
 npm run db:migrate   # apply migrations to ./data/portfolio.db
 npm run db:push      # push schema directly (dev shortcut, skips migration files)
 ```
 
-**There is no test runner and no lint script.** `npm run build` runs Next's TypeScript check
-(`strict: true`), so that is the check to run after code changes. Scattered
-`// eslint-disable-next-line` comments are vestigial — ESLint is not installed.
+**There is no lint script** — ESLint is not installed, so the scattered
+`// eslint-disable-next-line` comments are vestigial. Before calling work done run
+`npx tsc --noEmit`, `npm test`, and `npm run build`.
+
+The typechecker misses this project's characteristic bugs — a collapsed panel height, a column
+parsed one way here and another there. If you touched the UI, run the app against seeded data
+and actually look at both pages.
 
 If the dev server can't bind :3000, kill the old process first: `kill $(lsof -ti:3000)`.
 
-Requires Node 18+. Copy `.env.local.example` → `.env.local` and set `FMP_API_KEY` and
-`CLAUDE_API_KEY` before anything works; both clients throw on a missing key.
+The app runs on Node 18+; `npm test` needs **Node 22+** (native TypeScript stripping). Copy
+`.env.local.example` → `.env.local` for real data — but see Demo mode below, which needs no keys.
+
+---
+
+## Demo mode
+
+`npm run seed:demo` seeds five holdings with theses, ~130 days of deterministic price history,
+quarterly financials, two rounds of scan results, a regime snapshot, and anomaly flags. The whole
+app then works with **no FMP or Claude keys** — the fastest way to verify a UI change.
+
+It **replaces the six tables' contents**. To keep a real portfolio intact, point it at another
+file; every entry point honors `DATABASE_URL`:
+
+```bash
+DATABASE_URL=./data/demo.db npm run db:push
+DATABASE_URL=./data/demo.db npm run seed:demo
+DATABASE_URL=./data/demo.db npm run dev
+```
+
+The seeded holdings come from `examples/holdings.csv` — the single source of truth for the demo
+portfolio, kept as readable CSV so it can be reviewed and edited without touching the script.
+`HOLDINGS_CSV=./other.csv npm run seed:demo` seeds a different one. Tickers outside the five shipped
+examples get generated price history but no financial or scan fixtures, which render as empty states.
+
+The fixture's figures are invented, including headlines and analyst actions attributed to real
+publications and firms. Never present it as real data.
+
+---
+
+## Holdings data is the user's, and it is not in git
+
+`data/portfolio.db` is gitignored and holds real positions, cost basis, and hand-written theses.
+Never commit it, and never suggest committing it — this repo is meant to be open-sourced and git
+history is permanent. The backup path is **Export CSV** (`GET /api/holdings/csv`), which
+round-trips through the CSV importer.
+
+Quoting and parsing live in `src/lib/csv.ts` (RFC 4180, so thesis prose containing commas, quotes,
+and newlines survives); `tests/csv.test.ts` covers it. Import prefers values from the file and
+consults FMP only for missing fields, so a restore works with no API key. Keep that property.
 
 ---
 
@@ -98,6 +142,26 @@ per scan in `lib/claude/portfolio-scan.ts` (`analyzePortfolio`).
 context. Each step is individually wrapped in try/catch: a failed step logs a warning, leaves its
 field `null`, and the pipeline continues. A scan that half-fails still writes a row.
 
+### Delta scans
+
+`POST /api/scan` defaults to `mode: 'auto'` — a delta scan that re-runs only steps whose cache has
+expired. `src/lib/scan/delta.ts` owns that decision and is deliberately free of database and network
+imports so it stays directly testable; keep it that way.
+
+Per-step TTLs come from `STEP_TTL_HOURS` in `config/constants.ts`: news 4h, catalysts 12h,
+fundamentals/sector/thesis 24h, bucket never cached (it reads today's tape). Beyond TTL, three
+things force a re-run: a price move past `SCAN_PRICE_SPIKE_THRESHOLD` invalidates news, fresh news
+invalidates the thesis check derived from it, and an edited thesis invalidates the thesis check.
+Any step with missing stored output re-runs regardless of timestamp.
+
+Skipped steps carry their previous output **and timestamp** forward, so a row stays a complete
+snapshot without a skipped step looking newer than it is.
+
+**Adding a step:** write the prompt builder, call it from `pipeline.ts` guarded by
+`shouldRun(step)`, then add the name to `ALL_STEPS` and a TTL to `STEP_TTL_HOURS` — a step missing
+from those is either never cached or never re-run, and nothing fails loudly to tell you. Add a case
+to `tests/delta.test.ts`.
+
 ### Prompt module contract
 
 Every file in `lib/claude/prompts/` exports one `build<Name>Prompt(params)` returning
@@ -126,6 +190,18 @@ Lab shows the *raw* prompt's behavior. That divergence is intentional.
 
 ---
 
+## Holdings data is the user's, and it is not in git
+
+`data/portfolio.db` is gitignored and holds real positions, cost basis, and
+hand-written theses. Never commit it, and never suggest committing it — this repo
+is built to be open-sourced, and git history is permanent. The backup path is
+**Export CSV** (`GET /api/holdings/csv`), which round-trips through the CSV
+importer. Parsing and quoting live in `src/lib/csv.ts` (RFC 4180, so thesis prose
+containing commas and quotes survives); `tests/csv.test.ts` covers it.
+
+Import fills gaps from FMP but prefers values in the file, so a restore works with
+no API key. Keep that property.
+
 ## Database
 
 SQLite via better-sqlite3 + Drizzle at `./data/portfolio.db` (WAL mode, so reads work during a
@@ -141,12 +217,23 @@ background scan). Six tables in `lib/db/schema.ts`:
 | `anomalyFlags` | flags with a `resolved` 0/1 column |
 
 **JSON-in-TEXT is the convention.** Composite fields (`newsSentiment`, `catalysts`, `fiveMetrics`,
-`sectorRelative`, `driverAnalysis`) are `JSON.stringify`'d on write and parsed by
-`utils/deserialize-scan.ts` on read. **Always read scan rows through `deserializeScan()`** rather than
-using the raw Drizzle row.
+`sectorRelative`, `driverAnalysis`, `thesisAnalysis`, `stepTimestamps`) are `JSON.stringify`'d on
+write and parsed by `utils/deserialize-scan.ts` on read. **Always read scan rows through
+`deserializeScan()`** rather than using the raw Drizzle row — it is also the one place that tolerates
+legacy rows whose `thesis_analysis` held prose rather than JSON.
+
+`analysisScans.stepTimestamps` records when each pipeline step last actually ran; delta scans depend
+on it. Rows predating the column fall back to `scannedAt`.
+
+`analysisScans` being append-only is what makes scan history browsing work (`?scan=<id>` on a company
+page). Never update a scan row in place except in `/api/scan/step`, which patches the newest row by
+design.
 
 Schema changes: edit `schema.ts` → `npm run db:generate` → `npm run db:migrate`, and commit the
-generated files under `src/lib/db/migrations/`.
+generated files under `src/lib/db/migrations/`. **Running only `db:push` is how the committed
+migrations silently drifted for months** — `holdings.beta`, `analysis_scans.driver_analysis`, and two
+unique indexes existed in `schema.ts` but in no migration, so anyone following the README's
+`db:generate && db:migrate` path got a database missing columns the code required.
 
 ---
 
@@ -180,8 +267,9 @@ Other conventions:
 |-------|---------|
 | `GET/POST /api/holdings` | list / add a ticker (auto-populates profile, sector ETF, beta from FMP) |
 | `PATCH/DELETE /api/holdings/[ticker]` | edit thesis/shares/costBasis, remove holding |
-| `POST /api/holdings/csv` | bulk import `ticker[,shares][,cost_basis]` |
-| `POST /api/scan` | start the background scan — 202 on start, 409 + current state if one is running |
+| `GET /api/holdings/csv` | export all holdings (incl. thesis) as a CSV download |
+| `POST /api/holdings/csv` | bulk import; header-aware, falls back to `ticker[,shares][,cost_basis]` |
+| `POST /api/scan` | start the background scan — `{ mode: 'auto' \| 'full' }`; 202 on start, 409 + current state if one is running |
 | `GET /api/scan` | SSE progress stream; emits `idle` when nothing is running |
 | `POST /api/scan/step` | re-run one step (`news`/`bucket`/`thesis`/`catalysts`) and patch the latest row |
 | `POST /api/refresh` | full re-analysis of a single ticker, SSE progress |
@@ -232,29 +320,36 @@ Other UI rules:
 
 ## Known gotchas
 
-1. **`thesisAnalysis` is stored as a JSON string but `deserializeScan()` leaves it a string** (unlike
-   the sibling JSON fields). Any new consumer must `JSON.parse` it itself — see `extractThesisSummary()`
-   in the dashboard for the existing workaround.
-2. **`CACHE_NEWS_HOURS` / `CACHE_CATALYSTS_HOURS` are defined but unused.** Only fundamentals consults
-   `isCacheStale()`. Every scan re-runs all Claude steps, so scan cost scales linearly with holdings.
-   Delta scans are still unimplemented.
-3. **Tailwind styling occasionally drops out on load in dev** — hard refresh (`Cmd+Shift+R`). The
+1. **Keep the flex chain unbroken in panels.** A panel whose content must fill available height (the
+   Sankey especially) needs `flex flex-col` all the way down. A plain block wrapper in that chain
+   collapses the child to 0px, and a chart measuring itself with ResizeObserver then renders nothing
+   — silently, with no error and no type failure. This exact bug hid the Revenue Flow panel for
+   months.
+2. **Tailwind styling occasionally drops out on load in dev** — hard refresh (`Cmd+Shift+R`). The
    server-side cache is already handled by the `dev` script.
-4. **Limited FMP coverage** on some tickers (GLXY, NBIS, Q) and premium-only endpoints
+3. **Limited FMP coverage** on some tickers (GLXY, NBIS, Q) and premium-only endpoints
    (`/key-metrics?period=quarter` → the code uses `/ratios-ttm` instead). Handle `unavailable` blobs.
-5. **Regime check has a non-AI fallback**: if Claude fails, regime is classified from SPY's daily
+4. **Regime check has a non-AI fallback**: if Claude fails, regime is classified from SPY's daily
    change alone and still written to the DB with a rationale saying so.
-6. `SankeyChart` normalization can misbehave on very small or negative revenue values.
+5. **Preserve the degradation path.** Data access degrades live quotes → cached daily closes
+   (`getQuotes()` in `lib/fmp/quotes.ts`) → explicit empty states. A missing API key must never
+   produce a crash or a blank page, and panels showing end-of-day data should say so rather than
+   implying it is live.
+6. **No responsive pass yet** — layouts assume a desktop viewport.
+
+Fixed previously, listed here because older notes still describe them as open: `thesisAnalysis` is
+now parsed by `deserializeScan()`; delta scans are implemented and the `CACHE_*` values are wired up;
+`SankeyChart` guards negative and near-zero revenue.
 
 ---
 
 ## Repo docs
 
 - `README.md` — user-facing setup and feature overview.
-- `CHANGELOG.md` — the richest history of *why* things are the way they are, but its sprint table is
-  stale: it lists sprints 5–7 as "not started" while sprints 5 and 6 are committed (background scan
-  singleton, per-step refresh, anomaly display, centralized bucket colors, typography pass). Trust
-  `git log` over the table.
+- `CHANGELOG.md` — the richest history of *why* things are the way they are. Its sprint table was
+  corrected on 2026-08-08 and now matches the code; still, trust `git log` when the two disagree.
+- `docs/architecture.md` — data model, panel system, prompt pipeline, caching rules, and how to add
+  a panel or a pipeline step. `docs/contributing.md` — setup and house conventions.
 - `portfolio-monitor-product-spec.md`, `portfolio-monitor-technical-plan.md` — original design intent.
 
 If you make a substantial change, update `CHANGELOG.md` in the same commit — it's the handoff document

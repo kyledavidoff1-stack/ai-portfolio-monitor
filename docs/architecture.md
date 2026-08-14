@@ -69,7 +69,7 @@ Both pages are grids of draggable, resizable panels built on `react-grid-layout`
   defer loading the grid until the container width is known, avoiding a
   layout flash.
 - Layout and per-panel collapse state persist in `localStorage` under versioned
-  keys (`pm:company-layout-v7`, `pm:columns-v3`, …). **Bump the version suffix
+  keys (`pm:company-layout-v8`, `pm:columns-v4`, …). **Bump the version suffix
   whenever you change default layouts**, otherwise returning users keep their
   stale saved layout and never see the new arrangement.
 - Panels size to their container. A panel whose content must fill the available

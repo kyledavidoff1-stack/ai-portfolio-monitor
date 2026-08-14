@@ -305,12 +305,24 @@ export function HoldingsList({
           </div>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="text-[12px] text-gray-400 hover:text-gray-100 font-medium px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors"
-        >
-          + Add ticker
-        </button>
+        <div className="flex items-center gap-2">
+          {holdings.length > 0 && (
+            <a
+              href="/api/holdings/csv"
+              download
+              title="Download holdings as CSV — includes your thesis text, and re-imports through Add ticker › Upload CSV"
+              className="text-[12px] text-gray-400 hover:text-gray-100 font-medium px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors"
+            >
+              Export CSV
+            </a>
+          )}
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-[12px] text-gray-400 hover:text-gray-100 font-medium px-2 py-1 rounded border border-gray-700 hover:border-gray-500 transition-colors"
+          >
+            + Add ticker
+          </button>
+        </div>
       </div>
 
       {holdings.length === 0 ? (
