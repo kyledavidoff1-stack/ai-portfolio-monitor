@@ -166,6 +166,67 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 
 ---
 
+## 2026-08-27 — Publishing pass: self-serve setup, first-run fixes
+
+Refocus: the project is now packaged for someone to clone from GitHub and run against
+their own positions with their own FMP and Anthropic keys. Hosting concerns
+(auth, Postgres, secret management) are explicitly out of scope.
+
+### Bug fixes
+
+- **Relative-performance chart defaulted to a range it could not draw.**
+  `SectorRelativeChart` initialised to `1D`, but the 1D and 5D ranges require an
+  intraday feed that is unavailable without a paid FMP plan. The button was correctly
+  disabled while the state still said `1D`, so `chartData` fell through to
+  `data.slice(-1)` — a single point, rendered as a flat line with one dot, on every
+  company page. Range selection now picks the first range that can actually draw, and
+  the availability predicate is shared between the initial state and the buttons.
+- **Company panels opened pre-scrolled with text sliced mid-line.** Default panel
+  heights were measured against the seeded demo portfolio: Driver Analysis, Sentiment,
+  Thesis, Sector-Relative, Catalysts, Metrics, and Fundamentals were all shorter than
+  their content. Heights raised so a first-run page shows its content, columns still
+  ending level so no dead-space gaps open between rows. Layout key bumped
+  `pm:company-layout-v8` → `pm:company-layout-v9`.
+- **Stray resize marks along panel edges.** The company grid enabled all eight resize
+  handles; the `n`/`w`/`nw`/`ne`/`sw` handles rendered as floating marks against the
+  page background. Restricted to `s`/`e`/`se`.
+- **Duplicated "Holdings" heading** — the panel chrome and `HoldingsList` both rendered
+  the title. The inner one is now a position count.
+- **Demo estimates were internally inconsistent.** `seed-demo.cjs` derived estimated
+  net income from a flat 25% margin regardless of the company, so Amazon's FY27E net
+  income printed as +212% against a FY26 actual struck at ~9%. Estimates now use each
+  company's own net margin from its spec.
+- **Catalyst timeline dead space** — `mt-10` above the track left a visible gap under
+  the panel header; tightened to `mt-5`.
+
+### Layout
+
+- Dashboard: Holdings and the Correlation Heatmap now sit above Upcoming Catalysts.
+
+### Documentation
+
+- README rewritten for a self-serve audience: problem framing up front, keyless demo
+  before setup, a nine-step "use it with your own portfolio" walkthrough, and a new
+  **How to read the output** section explaining the four drivers, thesis statuses,
+  regime, and anomaly flags — none of which were documented anywhere.
+- Setup no longer tells users to run `db:generate`. That is a maintainer command and
+  running it on a fresh clone risks a stray migration file; `db:migrate` alone produces
+  the complete schema (verified against a clean database).
+- Added "What this is not", costs and limits, and troubleshooting sections.
+- Sprint roadmap removed from the README — it lives here.
+- Screenshots regenerated from a production build against the seeded demo portfolio.
+
+### Still open
+
+- Pipeline step failures remain silent (logged, field nulled, no UI signal).
+- The Settings page is still a non-functional mock with light-theme styling.
+- `POST /api/holdings` hard-fails without an FMP key, so a keyless user cannot add a
+  ticker by symbol (CSV import still works).
+- `CLAUDE_MODEL` defaults to `claude-sonnet-4-6`; the current Sonnet is `claude-sonnet-5`.
+- No responsive pass. Layouts assume a desktop viewport.
+
+---
+
 ## What's Working
 
 - **Holdings management** — add/edit/delete tickers, CSV import, inline editing (shares, cost basis, thesis)

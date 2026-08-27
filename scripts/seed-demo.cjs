@@ -268,16 +268,19 @@ function futureQuarterEnds(n) {
   return out;
 }
 
-function estimates(sym, ttmRev, ttmEps, g) {
+// netMargin comes from the company's own spec. A flat 25% here used to make
+// estimated net income wildly inconsistent with the historical rows — Amazon's
+// FY27E printed as +212% against a FY26 actual struck at a ~9% margin.
+function estimates(sym, ttmRev, ttmEps, g, netMargin) {
   const ann = [1, 2, 3].map((offset) => `${FY_YEAR + offset}-01-31`).map((date, i) => ({
     symbol: sym, date,
     epsAvg: +(ttmEps * Math.pow(1+g, i+1)).toFixed(2), revenueAvg: Math.round(ttmRev * Math.pow(1+g, i+1)),
-    netIncomeAvg: Math.round(ttmRev * Math.pow(1+g, i+1) * 0.25), ebitAvg: null, ebitdaAvg: null,
+    netIncomeAvg: Math.round(ttmRev * Math.pow(1+g, i+1) * netMargin), ebitAvg: null, ebitdaAvg: null,
   }));
   const q = futureQuarterEnds(4).map((date, i) => ({
     symbol: sym, date,
     epsAvg: +((ttmEps/4) * Math.pow(1+g/4, i+1)).toFixed(2), revenueAvg: Math.round((ttmRev/4) * Math.pow(1+g/4, i+1)),
-    netIncomeAvg: Math.round((ttmRev/4) * Math.pow(1+g/4, i+1) * 0.25), ebitAvg: null, ebitdaAvg: null,
+    netIncomeAvg: Math.round((ttmRev/4) * Math.pow(1+g/4, i+1) * netMargin), ebitAvg: null, ebitdaAvg: null,
   }));
   return { ann, q };
 }
@@ -365,7 +368,7 @@ for (const [sym, spec] of Object.entries(FUND_SPECS)) {
   if (!seededTickers.has(sym)) continue;
   const { income, cashFlow, balanceSheet, keyMetrics } = buildQuarters(spec.fin);
   const { annualIncome, annualCashFlow } = annualize(income, cashFlow);
-  const est = estimates(sym, spec.fin.revTTM, spec.fin.eps * 4, spec.g);
+  const est = estimates(sym, spec.fin.revTTM, spec.fin.eps * 4, spec.g, spec.fin.nm);
   const blob = {
     income, cashFlow, balanceSheet, keyMetrics,
     peers: spec.peers, peerRows: spec.peerRows, segments: spec.segments,

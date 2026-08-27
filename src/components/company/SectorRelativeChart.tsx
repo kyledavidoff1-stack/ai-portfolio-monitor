@@ -40,6 +40,21 @@ const RANGES: Array<{ label: RangeLabel; days: number }> = [
 
 const DEFAULT_RANGE: RangeLabel = '1D';
 
+// 1D and 5D need intraday bars; the daily-close ranges need roughly half their
+// window present. Without a paid FMP plan there is no intraday feed, so the
+// preferred 1D default is unselectable — pick the first range that can actually
+// draw a line instead of rendering a one-point chart.
+function isRangeAvailable(label: RangeLabel, dailyPoints: number, hasIntraday: boolean): boolean {
+  if (label === '1D' || label === '5D') return hasIntraday;
+  const days = RANGES.find((r) => r.label === label)?.days ?? 0;
+  return dailyPoints >= days * 0.5;
+}
+
+function initialRange(dailyPoints: number, hasIntraday: boolean): RangeLabel {
+  if (isRangeAvailable(DEFAULT_RANGE, dailyPoints, hasIntraday)) return DEFAULT_RANGE;
+  return RANGES.find((r) => isRangeAvailable(r.label, dailyPoints, hasIntraday))?.label ?? DEFAULT_RANGE;
+}
+
 function formatDateShort(dateStr: string): string {
   const d = new Date(dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -67,8 +82,8 @@ function renormalize(data: RelativePerfPoint[]): RelativePerfPoint[] {
 }
 
 export function SectorRelativeChart({ data, intradayData, ticker, sectorEtf }: Props) {
-  const [range, setRange] = useState<RangeLabel>(DEFAULT_RANGE);
   const hasIntraday = (intradayData?.length ?? 0) >= 2;
+  const [range, setRange] = useState<RangeLabel>(() => initialRange(data.length, hasIntraday));
 
   const chartData = useMemo(() => {
     if (range === '1D' && hasIntraday) {
@@ -109,9 +124,7 @@ export function SectorRelativeChart({ data, intradayData, ticker, sectorEtf }: P
       {/* Range toggle */}
       <div className="flex items-center gap-1 mb-2">
         {RANGES.map((r) => {
-          const available = r.label === '1D' || r.label === '5D'
-            ? hasIntraday
-            : data.length >= r.days * 0.5; // show if we have at least half the data
+          const available = isRangeAvailable(r.label, data.length, hasIntraday);
           return (
             <button
               key={r.label}

@@ -16,35 +16,40 @@ import { BUCKET_LABELS, BUCKET_COLORS } from '@/lib/config/constants';
 import { StepRefreshButton } from './StepRefreshButton';
 
 // Bump key to force-reset any cached layouts when the default arrangement changes
-const STORAGE_KEY = 'pm:company-layout-v8';
+const STORAGE_KEY = 'pm:company-layout-v9';
 const ROW_HEIGHT = 50;
 const MARGIN: [number, number] = [12, 12];
 
-// ── Default layout — no dead-space gaps between rows ──────────────────────────
+// ── Default layout ────────────────────────────────────────────────────────────
 //
 // Pixel height of panel = h * (ROW_HEIGHT + MARGIN) - MARGIN = h*62 - 12
+// Usable content height = that minus the ~38px panel header.
 //
-// Row 1: Driver (left, h=8, ends y=8) | Thesis (right, h=6, ends y=6)
-// Row 2: Sentiment (left, y=8, h=8, ends y=16) | SectorRel (right, y=6, h=10, ends y=16)
-//         ↑ both columns end at y=16
-// Row 3: Catalysts full-width at y=16, h=4, ends y=20
-// Row 4: 5Numbers (left, h=8, ends y=28) | RevenueFlow (right, h=8, ends y=28)
-// Row 5: Fundamentals full-width at y=28, h=4
+// Heights below were measured against the seeded demo portfolio so a first-run
+// panel shows its content rather than opening pre-scrolled with a line of text
+// sliced at the bottom edge. Columns still end level so no dead-space gaps open
+// between rows:
+//
+// Row 1: Driver (left, h=10, ends y=10) | Thesis (right, h=9, ends y=9)
+// Row 2: Sentiment (y=10, h=10, ends y=20) | SectorRel (y=9, h=11, ends y=20)
+// Row 3: Catalysts full-width at y=20, h=6, ends y=26
+// Row 4: Metrics (h=15) | Revenue Flow (h=15) — both end at y=41
+// Row 5: Fundamentals full-width at y=41, h=6
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
   // Row 1: Driver (left, 40%) | Thesis (right, 60%)
-  { i: 'driver',       x: 0,  y: 0,  w: 5,  h: 8,  minW: 3, minH: 3 },
-  { i: 'thesis',       x: 5,  y: 0,  w: 7,  h: 6,  minW: 4, minH: 4 },
-  // Row 2: Sentiment & SectorRel — both end at y=16
-  { i: 'sentiment',    x: 0,  y: 8,  w: 5,  h: 8,  minW: 3, minH: 5 },
-  { i: 'sectorrel',    x: 5,  y: 6,  w: 7,  h: 10, minW: 4, minH: 5 },
-  // Row 3: Catalysts full-width, y=16
-  { i: 'catalysts',    x: 0,  y: 16, w: 12, h: 4,  minW: 6, minH: 3 },
-  // Row 4: Metrics & Revenue Flow — both end at y=28
-  { i: '5numbers',     x: 0,  y: 20, w: 5,  h: 8,  minW: 3, minH: 5 },
-  { i: 'revenueflow',  x: 5,  y: 20, w: 7,  h: 8,  minW: 5, minH: 5 },
+  { i: 'driver',       x: 0,  y: 0,  w: 5,  h: 10, minW: 3, minH: 3 },
+  { i: 'thesis',       x: 5,  y: 0,  w: 7,  h: 9,  minW: 4, minH: 4 },
+  // Row 2: Sentiment & SectorRel — both end at y=20
+  { i: 'sentiment',    x: 0,  y: 10, w: 5,  h: 10, minW: 3, minH: 5 },
+  { i: 'sectorrel',    x: 5,  y: 9,  w: 7,  h: 11, minW: 4, minH: 5 },
+  // Row 3: Catalysts full-width, y=20
+  { i: 'catalysts',    x: 0,  y: 20, w: 12, h: 6,  minW: 6, minH: 3 },
+  // Row 4: Metrics & Revenue Flow — both end at y=41
+  { i: '5numbers',     x: 0,  y: 26, w: 5,  h: 15, minW: 3, minH: 5 },
+  { i: 'revenueflow',  x: 5,  y: 26, w: 7,  h: 15, minW: 5, minH: 5 },
   // Row 5: Fundamentals full-width
-  { i: 'fundamentals', x: 0,  y: 28, w: 12, h: 4,  minW: 6, minH: 3 },
+  { i: 'fundamentals', x: 0,  y: 41, w: 12, h: 6,  minW: 6, minH: 3 },
 ];
 
 function loadLayout(): LayoutItem[] {
@@ -141,7 +146,10 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
           layout={layout}
           gridConfig={{ cols: 12, rowHeight: ROW_HEIGHT, margin: MARGIN, containerPadding: [0, 0] }}
           dragConfig={{ enabled: true, handle: '.panel-drag-handle', threshold: 4 }}
-          resizeConfig={{ enabled: true, handles: ['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne'] }}
+          // Bottom/right handles only. The n/w/nw/ne/sw handles render as stray
+          // marks along the top and left edges of every panel, and resizing from
+          // those edges fights the grid's top-left anchoring anyway.
+          resizeConfig={{ enabled: true, handles: ['s', 'e', 'se'] }}
           onLayoutChange={handleLayoutChange}
         >
           {/* ── Today's Sentiment ── */}

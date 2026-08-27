@@ -102,14 +102,7 @@ export default function DraggableDashboard({
           </DraggablePanel>
         </div>
 
-        {/* Row 2: Upcoming Catalysts full width */}
-        <div className="col-span-12">
-          <DraggablePanel title="Upcoming Catalysts" subtitle="next 30 days across all holdings" collapsed={catalystsCollapsed} onToggle={toggleCatalysts}>
-            <PortfolioCatalystsContent latestScans={latestScans} />
-          </DraggablePanel>
-        </div>
-
-        {/* Row 3: Holdings + Correlation Heatmap */}
+        {/* Row 2: Holdings + Correlation Heatmap */}
         <div className="col-span-7">
           <DraggablePanel title="Holdings" collapsed={holdingsCollapsed} onToggle={toggleHoldings}>
             <HoldingsList holdings={holdings} quotes={quotes} scanState={scanState} latestScans={latestScans} anomalies={anomalies} />
@@ -118,6 +111,13 @@ export default function DraggableDashboard({
         <div className="col-span-5">
           <DraggablePanel title="Correlation Heatmap" subtitle="90-day rolling" collapsed={heatmapCollapsed} onToggle={toggleHeatmap}>
             <CorrelationHeatmap data={correlationData} />
+          </DraggablePanel>
+        </div>
+
+        {/* Row 3: Upcoming Catalysts full width */}
+        <div className="col-span-12">
+          <DraggablePanel title="Upcoming Catalysts" subtitle="next 30 days across all holdings" collapsed={catalystsCollapsed} onToggle={toggleCatalysts}>
+            <PortfolioCatalystsContent latestScans={latestScans} />
           </DraggablePanel>
         </div>
       </div>
@@ -493,7 +493,7 @@ function CatalystTimeline({ catalysts }: { catalysts: Array<Catalyst & { ticker:
 
   return (
     <div className="mb-4">
-      <div className="relative h-8 mt-10">
+      <div className="relative h-8 mt-5">
         {/* Main line */}
         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-800 -translate-y-1/2" />
         {/* Tick marks */}

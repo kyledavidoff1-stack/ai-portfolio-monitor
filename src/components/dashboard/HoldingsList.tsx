@@ -247,9 +247,10 @@ export function HoldingsList({
       {/* Header bar */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-gray-400 uppercase tracking-widest">Holdings</span>
+          {/* The enclosing panel already renders the "Holdings" title — showing it
+              again here just doubled the heading. Keep the count only. */}
           {holdings.length > 0 && (
-            <span className="text-[13px] text-gray-500 font-mono">{holdings.length}</span>
+            <span className="text-[13px] text-gray-500 font-mono">{holdings.length} positions</span>
           )}
 
           {/* Column visibility toggle */}
