@@ -113,14 +113,15 @@ You bring your own keys. They are read from a local file and never leave your ma
 | Key | What it does | Where | Cost |
 |-----|--------------|-------|------|
 | **Financial Modeling Prep** | Prices, financial statements, company profiles, peers | [financialmodelingprep.com](https://financialmodelingprep.com/developer) | Free tier: 250 requests/day. Starter is $14/month. |
-| **An AI provider** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) for Anthropic | Pay per use — see [Costs](#costs-and-limits). |
+| **Anthropic (Claude)** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) | Pay per use — see [Costs](#costs-and-limits). |
 
-**On the AI key.** The pipeline speaks the Anthropic Messages API, so an Anthropic
-key works directly. It is not locked to one vendor: any gateway or proxy that
-implements the same API works too — set a base URL and name whichever model you want
-to pay for. Two of the eight steps (news and catalysts) use server-side web search; on
-a provider that does not support it, those two steps fail with a visible message and
-the other six still run.
+**On the AI key.** Pasting the key is all the setup there is — a current model is
+picked for you. If you want a different model, or you would rather route through a
+gateway or proxy that speaks the Anthropic Messages API, both are available under
+**Advanced** on the Settings page. Three of the eight steps (news, catalysts, and the
+regime check) ask the model to search the web using Anthropic's server-side search
+tool; through a gateway those three work only if it translates that tool for its
+backend, and if it doesn't they fail with a visible message while the other five run.
 
 **What breaks without each key.** With no FMP key you can still run the app, add
 holdings from a CSV, and read seeded data — but live quotes and fresh financials will
@@ -149,9 +150,7 @@ cp .env.local.example .env.local
 
 ```bash
 FMP_API_KEY=your_fmp_api_key_here
-AI_API_KEY=your_api_key_here
-AI_MODEL=claude-sonnet-4-6
-# AI_BASE_URL=https://your-gateway.example.com   # only for a non-Anthropic endpoint
+AI_API_KEY=your_anthropic_api_key_here
 ```
 
 `.env.local` is gitignored. A key saved in Settings takes precedence over the file;

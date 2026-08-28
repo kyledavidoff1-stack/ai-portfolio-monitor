@@ -166,6 +166,23 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 
 ---
 
+## 2026-08-28 (later) — Key-only setup
+
+- **An API key is the whole setup.** Model and base URL moved behind an **Advanced**
+  disclosure on the Settings page; the section auto-opens when either is already
+  customised, so a gateway user does not think their config vanished.
+- **Default model is now `claude-sonnet-5`** (was `claude-sonnet-4-6`), so the
+  key-only path lands on a current model rather than a previous-generation one.
+- **Corrected the web-search caveat.** Three steps use search, not two — news,
+  catalysts, and the regime check. And the constraint is narrower than previously
+  written: every major provider offers web search, but the pipeline sends Anthropic's
+  server-side `web_search` tool block, so through a gateway those steps depend on the
+  gateway translating that block rather than on the provider having the capability.
+  The tool version stays at the basic `web_search_20250305`, which is the variant
+  accepted across the widest range of models.
+
+---
+
 ## 2026-08-28 — Failed steps are visible; settings page works; bring your own provider
 
 ### Pipeline failures are no longer silent
@@ -206,8 +223,8 @@ the same API:
   still accepted as environment fallbacks.
 - `getClaudeClient()` rebuilds when the key or base URL changes, so a saved key applies
   without a restart. The FMP client resolves its key the same way.
-- Documented caveat: two of the eight steps use server-side web search, and on a
-  provider without it those two fail visibly while the other six still run.
+- Documented caveat: three of the eight steps use server-side web search, and through
+  a gateway they work only if it translates Anthropic's search tool for its backend.
 
 ### Repository layout
 

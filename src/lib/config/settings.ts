@@ -23,7 +23,7 @@ export type SettingKey =
  *  one is winning when both a stored setting and an env var exist. */
 export type SettingSource = 'settings' | 'env' | 'unset';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_MODEL = 'claude-sonnet-5';
 
 // Environment fallbacks. ANTHROPIC_API_KEY is accepted alongside CLAUDE_API_KEY
 // because most people already have that one exported.

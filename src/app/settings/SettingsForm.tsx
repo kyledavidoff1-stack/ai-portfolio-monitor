@@ -30,6 +30,7 @@ export function SettingsForm() {
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
 
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -44,6 +45,11 @@ export function SettingsForm() {
       setData(json);
       setBaseUrl(json.aiBaseUrl.value ?? '');
       setModel(json.aiModel.value ?? '');
+      // If either advanced value is already customised, open the section so it
+      // is visible rather than hidden behind a toggle.
+      if (json.aiBaseUrl.value || (json.aiModel.value && json.aiModel.value !== json.defaultModel)) {
+        setShowAdvanced(true);
+      }
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load settings');
@@ -130,17 +136,24 @@ export function SettingsForm() {
           AI provider
         </h2>
         <p className="text-xs text-gray-500 mb-4 leading-relaxed">
-          The analysis pipeline speaks the Anthropic Messages API. That means your own
-          Anthropic key works directly, and so does any gateway or proxy that implements
-          the same API — point the base URL at it and name whichever model you want to
-          pay for.
+          Paste an{' '}
+          <a
+            href="https://console.anthropic.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300"
+          >
+            Anthropic API key
+          </a>{' '}
+          and you are done — the model is chosen for you. If you would rather use a
+          different model or route through a gateway, open Advanced below.
         </p>
 
         <Field
           label="API key"
           hint={data.aiApiKey.masked
             ? `Currently ${data.aiApiKey.masked} (${SOURCE_LABEL[data.aiApiKey.source]}). Leave blank to keep it.`
-            : 'No key configured yet.'}
+            : `Using ${data.defaultModel} unless you change it under Advanced.`}
         >
           <input
             type="password"
@@ -152,34 +165,6 @@ export function SettingsForm() {
           />
         </Field>
 
-        <Field
-          label="Model"
-          hint={`Whatever model name your provider expects. Default: ${data.defaultModel}`}
-        >
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder={data.defaultModel}
-            className={`${inputClass} font-mono`}
-            autoComplete="off"
-          />
-        </Field>
-
-        <Field
-          label="Base URL"
-          hint="Optional. Leave blank for the Anthropic API. Set this to use a gateway, proxy, or self-hosted endpoint."
-        >
-          <input
-            type="text"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.anthropic.com"
-            className={`${inputClass} font-mono`}
-            autoComplete="off"
-          />
-        </Field>
-
         <TestRow
           state={aiTest}
           disabled={data.aiApiKey.source === 'unset' && aiKey.trim() === ''}
@@ -187,11 +172,54 @@ export function SettingsForm() {
           label="Test AI connection"
         />
 
-        <p className="text-xs text-gray-600 mt-3 leading-relaxed">
-          Two of the eight pipeline steps (news and catalysts) use server-side web
-          search. On a provider that does not support it, those steps will fail and say
-          so — the rest of the analysis still runs.
-        </p>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="mt-4 flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          aria-expanded={showAdvanced}
+        >
+          <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>›</span>
+          Advanced — model and endpoint
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 pt-3 border-t border-gray-800">
+            <Field
+              label="Model"
+              hint={`Any model name your provider accepts. Default: ${data.defaultModel}`}
+            >
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={data.defaultModel}
+                className={`${inputClass} font-mono`}
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field
+              label="Base URL"
+              hint="Leave blank for the Anthropic API. Set it to route through a gateway, proxy, or self-hosted endpoint that speaks the same API."
+            >
+              <input
+                type="text"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="https://api.anthropic.com"
+                className={`${inputClass} font-mono`}
+                autoComplete="off"
+              />
+            </Field>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Three of the eight steps — news, catalysts, and the regime check — ask the
+              model to search the web, using Anthropic&apos;s server-side search tool. If
+              you route through a gateway, those three work only if it translates that
+              tool to whatever its backend uses. When it doesn&apos;t, those steps fail
+              with a visible message and the other five still run.
+            </p>
+          </div>
+        )}
       </section>
 
       {/* ── Market data ── */}
