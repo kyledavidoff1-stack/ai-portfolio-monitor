@@ -3,7 +3,7 @@
 ## For use with Claude Code
 
 **Date:** March 31, 2026
-**Companion document:** portfolio-monitor-product-spec.md (read this first for full product context)
+**Companion document:** product-spec.md (read this first for full product context)
 **Status:** Sprints 0-2 complete. Significant layout work done beyond original plan. Revised sprint plan below.
 
 ---
@@ -448,7 +448,7 @@ CACHE_CATALYSTS_HOURS=12
 
 1. **Prompt development:** Use Claude Code (or Claude chat) to prototype and refine each prompt template. Test with real tickers. Iterate until the structured JSON output is reliable and the plain-language summaries read well.
 
-2. **Sprint execution:** Feed one sprint description to Claude Code at a time. Start each new Claude Code session with: "This is the Portfolio Monitor project. Read portfolio-monitor-product-spec.md and portfolio-monitor-technical-plan.md for full context."
+2. **Sprint execution:** Feed one sprint description to Claude Code at a time. Start each new Claude Code session with: "This is the Portfolio Monitor project. Read product-spec.md and technical-plan.md for full context."
 
 3. **Review cycle:** After each sprint, review the output. Run the app. Check acceptance criteria. Note issues before proceeding.
 

@@ -1,3 +1,4 @@
+import { getSetting } from '@/lib/config/settings';
 // FMP API client — implemented in Sprint 1
 // Financial Modeling Prep: https://financialmodelingprep.com/developer/docs
 
@@ -5,8 +6,12 @@ export const FMP_BASE = 'https://financialmodelingprep.com/stable';
 export const FMP_BASE_LEGACY = 'https://financialmodelingprep.com/api';
 
 export function getFmpApiKey(): string {
-  const key = process.env.FMP_API_KEY;
-  if (!key) throw new Error('FMP_API_KEY is not set. Add it to .env.local');
+  const key = getSetting('FMP_API_KEY');
+  if (!key) {
+    throw new Error(
+      'No FMP API key configured. Add one on the Settings page, or set FMP_API_KEY in .env.local',
+    );
+  }
   return key;
 }
 

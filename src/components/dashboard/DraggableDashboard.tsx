@@ -52,6 +52,7 @@ export default function DraggableDashboard({
   const scanPct = scanState && scanState.totalTickers > 0
     ? (scanState.completedTickers.size / scanState.totalTickers) * 100
     : 0;
+  const failureCount = scanState?.stepFailures.length ?? 0;
 
   return (
     <div>
@@ -61,17 +62,20 @@ export default function DraggableDashboard({
           {scanActive && (
             <span className="w-3.5 h-3.5 border-2 border-gray-600 border-t-blue-400 rounded-full animate-spin shrink-0" />
           )}
-          {scanComplete && (
+          {scanComplete && failureCount === 0 && (
             <svg className="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 16A8 8 0 108 0a8 8 0 000 16zm3.78-9.72a.75.75 0 00-1.06-1.06L7 8.94 5.28 7.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l4.25-4.25z" />
+            </svg>
+          )}
+          {scanComplete && failureCount > 0 && (
+            <svg className="w-4 h-4 text-amber-400 shrink-0" viewBox="0 0 16 16" fill="currentColor">
+              <path fillRule="evenodd" d="M8 16A8 8 0 108 0a8 8 0 000 16zM8 4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 100-2 1 1 0 000 2z" />
             </svg>
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-gray-300 font-medium truncate">
-                {scanComplete
-                  ? 'Scan complete'
-                  : scanState.message || 'Starting scan...'}
+                {scanState.message || (scanComplete ? 'Scan complete' : 'Starting scan...')}
               </span>
               {scanState.totalTickers > 0 && (
                 <span className="text-[12px] text-gray-500 font-mono shrink-0 ml-2">
@@ -81,10 +85,26 @@ export default function DraggableDashboard({
             </div>
             <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-300 ${scanComplete ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                className={`h-full rounded-full transition-all duration-300 ${
+                  scanComplete ? (failureCount > 0 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-blue-500'
+                }`}
                 style={{ width: `${scanPct}%` }}
               />
             </div>
+
+            {/* A failed step leaves its panel empty. Say which ones, so an empty
+                panel is explicable rather than looking like "no data found". */}
+            {failureCount > 0 && (
+              <ul className="mt-2 space-y-0.5">
+                {scanState.stepFailures.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[12px] leading-relaxed">
+                    <span className="font-mono font-semibold text-gray-300 shrink-0">{f.ticker}</span>
+                    <span className="text-amber-400 shrink-0">{f.stepLabel} failed</span>
+                    <span className="text-gray-500 truncate" title={f.message}>{f.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

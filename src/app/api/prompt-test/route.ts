@@ -15,7 +15,7 @@ import { fetchQuotes } from '@/lib/fmp/quotes';
 import { getFundamentals } from '@/lib/fmp/fundamentals-cache';
 import { ensureAllPriceHistory, getAlignedPriceHistory } from '@/lib/fmp/prices';
 import { normalizeTo100, percentileRank } from '@/lib/analysis/correlation';
-import { getClaudeClient, CLAUDE_MODEL } from '@/lib/claude/client';
+import { getClaudeClient, getModel } from '@/lib/claude/client';
 import { buildNewsSentimentPrompt } from '@/lib/claude/prompts/news-sentiment';
 import { buildFundamentalAnalysisPrompt } from '@/lib/claude/prompts/fundamental-analysis';
 import { buildSectorRelativePrompt } from '@/lib/claude/prompts/sector-relative';
@@ -372,7 +372,7 @@ export async function POST(request: Request) {
 
     const start = Date.now();
     const response = await client.messages.create({
-      model: CLAUDE_MODEL,
+      model: getModel(),
       max_tokens: 4096,
       system,
       messages: [{ role: 'user', content: userMessage }],
@@ -404,7 +404,7 @@ export async function POST(request: Request) {
       durationMs,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
-      model: CLAUDE_MODEL,
+      model: getModel(),
       webSearch: promptData.webSearch ?? false,
       dependencies,
     });

@@ -53,6 +53,7 @@ export const analysisScans = sqliteTable('analysis_scans', {
   driverAnalysis: text('driver_analysis'),   // JSON: past/today/forward driver assessment
   fullAnalysis: text('full_analysis'),       // JSON: complete AI output for deep dive
   stepTimestamps: text('step_timestamps'),   // JSON: per-step freshness, e.g. {"news":"2026-08-08T11:00:00Z"}
+  stepErrors: text('step_errors'),           // JSON: per-step failure message, e.g. {"catalysts":"FMP_RATE_LIMIT: ..."}
   scannedAt: text('scanned_at').notNull(),
 });
 
@@ -75,4 +76,14 @@ export const anomalyFlags = sqliteTable('anomaly_flags', {
   severity: text('severity').notNull(),      // 'high', 'medium', 'low'
   resolved: integer('resolved').default(0),  // 0 or 1
   flaggedAt: text('flagged_at').notNull(),
+});
+
+// Local app settings (API keys, model choice). Key/value so new settings do not
+// need a migration. Values live in this user's own SQLite file — the same trust
+// boundary as .env.local — and are never sent anywhere except the provider the
+// setting names.
+export const appSettings = sqliteTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull(),
 });

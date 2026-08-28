@@ -113,7 +113,14 @@ You bring your own keys. They are read from a local file and never leave your ma
 | Key | What it does | Where | Cost |
 |-----|--------------|-------|------|
 | **Financial Modeling Prep** | Prices, financial statements, company profiles, peers | [financialmodelingprep.com](https://financialmodelingprep.com/developer) | Free tier: 250 requests/day. Starter is $14/month. |
-| **Anthropic (Claude)** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) | Pay per use — see [Costs](#costs-and-limits). |
+| **An AI provider** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) for Anthropic | Pay per use — see [Costs](#costs-and-limits). |
+
+**On the AI key.** The pipeline speaks the Anthropic Messages API, so an Anthropic
+key works directly. It is not locked to one vendor: any gateway or proxy that
+implements the same API works too — set a base URL and name whichever model you want
+to pay for. Two of the eight steps (news and catalysts) use server-side web search; on
+a provider that does not support it, those two steps fail with a visible message and
+the other six still run.
 
 **What breaks without each key.** With no FMP key you can still run the app, add
 holdings from a CSV, and read seeded data — but live quotes and fresh financials will
@@ -128,18 +135,28 @@ explicit empty state, and quotes fall back to the most recent cached daily close
 git clone https://github.com/kyledavidoff1-stack/portfolio-monitor.git
 cd portfolio-monitor
 npm install
+```
+
+You can add your keys **in the app** — start it (steps 4 and 5), open **Settings**, paste
+them in, and hit **Test connection** on each to confirm they work before you spend
+anything on a scan. Keys entered there are stored in your local database.
+
+If you would rather use a file:
+
+```bash
 cp .env.local.example .env.local
 ```
 
-Open `.env.local` and fill in:
-
 ```bash
 FMP_API_KEY=your_fmp_api_key_here
-CLAUDE_API_KEY=your_anthropic_api_key_here
+AI_API_KEY=your_api_key_here
+AI_MODEL=claude-sonnet-4-6
+# AI_BASE_URL=https://your-gateway.example.com   # only for a non-Anthropic endpoint
 ```
 
-`.env.local` is gitignored. The rest of the file is optional tuning — cache durations,
-the anomaly threshold, and which Claude model to use.
+`.env.local` is gitignored. A key saved in Settings takes precedence over the file;
+clear the field in Settings to fall back to it. Either way the keys stay on your
+machine — in plain text, at the same trust level as any local dotfile.
 
 ### Step 4 — Create the database
 
@@ -224,6 +241,16 @@ past / today / forward breakdown on the company page.
 A *challenged* status is not a sell signal. It means the reason you gave for owning it
 no longer matches the evidence, which is the moment to make a decision deliberately.
 
+### When a step fails
+
+A scan runs eight steps and any one of them can fail on its own — a rate limit, a
+provider hiccup, a ticker the data provider does not cover. When that happens the scan
+carries on and the rest of the analysis still lands, but the panel that step would have
+filled shows an amber **"This step failed on the last scan"** banner with the underlying
+error, and the scan progress bar lists which steps failed. Use the refresh button in the
+panel header to retry just that step. An empty panel with no banner means the step ran
+and genuinely found nothing.
+
 ### Regime and anomalies
 
 The command strip shows the market regime — **risk-on**, **risk-off**, **rotation**, or
@@ -298,9 +325,19 @@ already clears the server-side Next.js cache on every start.
 
 **Port 3000 is in use.** `kill $(lsof -ti:3000)`.
 
-**A panel is empty.** Either that holding has not been scanned yet, or FMP has no data
-for the ticker. Company pages tell you which by showing a "Run scan to…" prompt when
-analysis is missing.
+**A panel is empty.** Either that holding has not been scanned yet, or the data
+provider has nothing for the ticker. Company pages tell you which: a "Run scan to…"
+prompt means it has not been analysed, an amber banner means the step failed and shows
+why, and neither means the step ran and found nothing.
+
+**`db:migrate` fails with "table already exists".** The database was created with
+`db:push`, which does not record a migration history. Either keep using `db:push`, or
+back up with `npm run export:holdings`, delete `data/portfolio.db`, run `db:migrate`,
+and re-import. A database created with `db:migrate` from the start never hits this.
+
+**A key saved in Settings is not being used.** Values in Settings take precedence over
+`.env.local`, not the other way round. The Settings page labels each field with where
+its current value came from.
 
 **Prices show as end-of-day.** That is the intended fallback when live quotes are
 unavailable — usually a rate limit or a free-tier restriction.

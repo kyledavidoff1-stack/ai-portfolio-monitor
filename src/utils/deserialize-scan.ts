@@ -30,6 +30,7 @@ interface RawScanRow {
   driverAnalysis: string | null;
   fullAnalysis: string | null;
   stepTimestamps?: string | null;
+  stepErrors?: string | null;
   scannedAt: string;
 }
 
@@ -70,6 +71,7 @@ export function deserializeScan(row: RawScanRow): AnalysisScan {
     driverAnalysis: tryParse<DriverAnalysis>(row.driverAnalysis),
     fullAnalysis: tryParse<Record<string, unknown>>(row.fullAnalysis),
     stepTimestamps: tryParse<Record<string, string>>(row.stepTimestamps ?? null),
+    stepErrors: tryParse<Record<string, string>>(row.stepErrors ?? null),
     scannedAt: row.scannedAt,
   };
 }

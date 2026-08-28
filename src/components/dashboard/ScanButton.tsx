@@ -3,6 +3,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
+export interface StepFailure {
+  ticker: string;
+  step: string;
+  stepLabel: string;
+  message: string;
+}
+
 export interface ScanState {
   scanning: boolean;
   currentTicker: string | null;
@@ -11,6 +18,9 @@ export interface ScanState {
   totalTickers: number;
   completedTickers: Set<string>;
   message: string;
+  /** Pipeline steps that threw during this run. The scan continues past them,
+   *  so they are reported here rather than surfacing as a scan-level error. */
+  stepFailures: StepFailure[];
 }
 
 export function ScanButton({
@@ -26,6 +36,7 @@ export function ScanButton({
   const observeScan = useCallback(
     async (signal: AbortSignal) => {
       const completedTickers = new Set<string>();
+      const stepFailures: StepFailure[] = [];
       let lastTicker: string | null = null;
       let total = 0;
 
@@ -75,6 +86,26 @@ export function ScanButton({
                     totalTickers: total,
                     completedTickers: new Set(completedTickers),
                     message: data.message ?? '',
+                    stepFailures: [...stepFailures],
+                  });
+                } else if (eventType === 'step_error') {
+                  // One pipeline step failed; the scan keeps going. Record it so
+                  // the panel it would have filled can say why it is empty.
+                  stepFailures.push({
+                    ticker: data.ticker ?? '',
+                    step: data.step ?? '',
+                    stepLabel: data.stepLabel ?? data.step ?? 'step',
+                    message: data.message ?? 'Unknown error',
+                  });
+                  onProgress?.({
+                    scanning: true,
+                    currentTicker: lastTicker,
+                    currentStep: null,
+                    currentIdx: completedTickers.size,
+                    totalTickers: total,
+                    completedTickers: new Set(completedTickers),
+                    message: `${data.ticker}: ${data.stepLabel ?? data.step} failed — continuing`,
+                    stepFailures: [...stepFailures],
                   });
                 } else if (eventType === 'error') {
                   onProgress?.({
@@ -85,6 +116,7 @@ export function ScanButton({
                     totalTickers: total,
                     completedTickers: new Set(completedTickers),
                     message: data.message ?? 'Error',
+                    stepFailures: [...stepFailures],
                   });
                 } else if (eventType === 'complete') {
                   if (lastTicker) completedTickers.add(lastTicker);
@@ -95,7 +127,8 @@ export function ScanButton({
                     currentIdx: total,
                     totalTickers: total,
                     completedTickers: new Set(completedTickers),
-                    message: 'Scan complete',
+                    message: data.message ?? 'Scan complete',
+                    stepFailures: [...stepFailures],
                   });
 
                   setTimeout(() => {
@@ -121,6 +154,7 @@ export function ScanButton({
           totalTickers: total,
           completedTickers: new Set(completedTickers),
           message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          stepFailures: [],
         });
         setScanning(false);
       }
@@ -144,6 +178,7 @@ export function ScanButton({
       totalTickers: 0,
       completedTickers: new Set(),
       message: 'Checking scan status...',
+      stepFailures: [],
     });
 
     observeScan(ac.signal).finally(() => {
@@ -166,6 +201,7 @@ export function ScanButton({
       totalTickers: 0,
       completedTickers: new Set(),
       message: mode === 'full' ? 'Starting full rescan...' : 'Starting scan...',
+      stepFailures: [],
     });
 
     try {
@@ -187,6 +223,7 @@ export function ScanButton({
           totalTickers: 0,
           completedTickers: new Set(),
           message: `Failed to start scan: ${body}`,
+          stepFailures: [],
         });
         setScanning(false);
         return;
@@ -206,6 +243,7 @@ export function ScanButton({
         totalTickers: 0,
         completedTickers: new Set(),
         message: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        stepFailures: [],
       });
       setScanning(false);
     }

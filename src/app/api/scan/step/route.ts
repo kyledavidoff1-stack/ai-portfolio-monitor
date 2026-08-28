@@ -214,9 +214,17 @@ export async function POST(request: Request) {
       [step]: now,
     });
 
+    // This step just succeeded, so drop any failure recorded against it —
+    // otherwise the panel keeps showing a stale "this step failed" banner.
+    const remainingErrors = { ...(existingScan?.stepErrors ?? {}) };
+    delete remainingErrors[step];
+    const stepErrors = Object.keys(remainingErrors).length > 0
+      ? JSON.stringify(remainingErrors)
+      : null;
+
     if (scanRow) {
       await db.update(analysisScans)
-        .set({ ...updateFields, stepTimestamps, scannedAt: now })
+        .set({ ...updateFields, stepTimestamps, stepErrors, scannedAt: now })
         .where(eq(analysisScans.id, scanRow.id));
     } else {
       await db.insert(analysisScans).values({
@@ -224,6 +232,7 @@ export async function POST(request: Request) {
         scanType: 'step',
         ...updateFields,
         stepTimestamps,
+        stepErrors,
         scannedAt: now,
       });
     }

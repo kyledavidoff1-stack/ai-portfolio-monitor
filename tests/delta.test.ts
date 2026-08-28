@@ -46,6 +46,7 @@ function scanFixture(over: Partial<AnalysisScan> = {}): AnalysisScan {
       thesis: hoursAgo(1),
       catalysts: hoursAgo(1),
     },
+    stepErrors: null,
     scannedAt: hoursAgo(1),
     ...over,
   };

@@ -184,7 +184,10 @@ The single entry point for pipeline calls. It prepends `GLOBAL_SYSTEM_PREFIX` (a
 to every system prompt, retries 3× with 1s/4s/16s backoff on rate-limit and overload errors, extracts
 JSON from the response (code fence first, then bracket matching), and on a parse failure asks Claude
 once to repair its own JSON. New Claude calls in the pipeline should go through it rather than the
-raw SDK. Model comes from `CLAUDE_MODEL` (default `claude-sonnet-4-6`) in `lib/config/constants.ts`.
+raw SDK. Model, API key and base URL come from `lib/config/settings.ts`, which resolves the
+`app_settings` table first and the environment second — so the Settings page can change
+them at runtime. `AI_API_KEY` / `AI_MODEL` / `AI_BASE_URL`, with `CLAUDE_API_KEY` and
+`ANTHROPIC_API_KEY` accepted as env fallbacks.
 
 Note: `/api/prompt-test` deliberately calls the SDK directly — no brevity prefix, no retry — so Prompt
 Lab shows the *raw* prompt's behavior. That divergence is intentional.
@@ -206,7 +209,7 @@ no API key. Keep that property.
 ## Database
 
 SQLite via better-sqlite3 + Drizzle at `./data/portfolio.db` (WAL mode, so reads work during a
-background scan). Six tables in `lib/db/schema.ts`:
+background scan). Seven tables in `lib/db/schema.ts`:
 
 | Table | Holds |
 |-------|-------|
@@ -216,6 +219,7 @@ background scan). Six tables in `lib/db/schema.ts`:
 | `analysisScans` | append-only AI results; "latest" = newest `scannedAt` per ticker |
 | `regimeSnapshots` | append-only regime history |
 | `anomalyFlags` | flags with a `resolved` 0/1 column |
+| `appSettings` | key/value local settings — API keys, model, base URL (see `lib/config/settings.ts`) |
 
 **JSON-in-TEXT is the convention.** Composite fields (`newsSentiment`, `catalysts`, `fiveMetrics`,
 `sectorRelative`, `driverAnalysis`, `thesisAnalysis`, `stepTimestamps`) are `JSON.stringify`'d on
@@ -351,7 +355,7 @@ now parsed by `deserializeScan()`; delta scans are implemented and the `CACHE_*`
   corrected on 2026-08-08 and now matches the code; still, trust `git log` when the two disagree.
 - `docs/architecture.md` — data model, panel system, prompt pipeline, caching rules, and how to add
   a panel or a pipeline step. `docs/contributing.md` — setup and house conventions.
-- `portfolio-monitor-product-spec.md`, `portfolio-monitor-technical-plan.md` — original design intent.
+- `docs/product-spec.md`, `docs/technical-plan.md` — original design intent.
 
 If you make a substantial change, update `CHANGELOG.md` in the same commit — it's the handoff document
 between sessions.

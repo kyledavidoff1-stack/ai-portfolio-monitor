@@ -15,6 +15,20 @@
       "when": 1786193380259,
       "tag": "0001_confused_sentinel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787907938906,
+      "tag": "0002_remarkable_runaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787908290795,
+      "tag": "0003_overconfident_pixie",
+      "breakpoints": true
     }
   ]
 }

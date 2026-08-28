@@ -1,0 +1,1 @@
+ALTER TABLE `analysis_scans` ADD `step_errors` text;

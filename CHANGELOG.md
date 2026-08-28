@@ -1,6 +1,6 @@
 # CHANGELOG — Portfolio Monitor
 
-> Last updated: 2026-08-08
+> Last updated: 2026-08-28
 > Purpose: Session context for continuing development. Documents what's built, what changed post-sprint, and what's next.
 
 ---
@@ -163,6 +163,65 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 
 ### Prompt Testing Interface
 - Added `/settings/prompt-test` page for testing Claude prompts against holdings
+
+---
+
+## 2026-08-28 — Failed steps are visible; settings page works; bring your own provider
+
+### Pipeline failures are no longer silent
+
+A step that threw used to log a warning, leave its field null, and produce a panel
+indistinguishable from one where the step ran and found nothing. Now:
+
+- `analyzeStock()` accumulates per-step failures and takes an `onStepError` callback.
+- `analysis_scans.step_errors` (migration `0002`) stores them on the row. A skipped
+  delta step inherits the previous run's error so a stale failure stays visible until
+  the step actually succeeds; a successful single-step refresh clears just that entry.
+- The scan manager emits a `step_error` SSE event per failure and reports the count on
+  completion (`Scan complete — analyzed 5 stocks (2 steps failed)`), with an amber
+  progress bar and a per-failure list.
+- Company panels render a `StepFailed` banner carrying the underlying error and a
+  pointer to the panel's own refresh button.
+
+### Settings page is real
+
+Was a mock: dead inputs, light-theme classes on a dark app, hardcoded values.
+
+- New `app_settings` table (migration `0003`) and `lib/config/settings.ts`, which
+  resolves every value from the database first and the environment second.
+- `GET/POST /api/settings` — secrets are masked on read and never round-tripped.
+- `POST /api/settings/test` verifies each credential with a real call, so a first-run
+  user can confirm setup before spending a scan's worth of tokens on a typo.
+- The page shows where each value came from (`saved here` / `from .env.local`), and
+  states plainly that keys are stored in plain text in the local database.
+
+### Bring your own provider
+
+The pipeline is no longer presented as Claude-only. It speaks the Anthropic Messages
+API, so an Anthropic key works directly and so does any gateway or proxy implementing
+the same API:
+
+- `AI_API_KEY` / `AI_MODEL` / `AI_BASE_URL` replace `CLAUDE_API_KEY` / `CLAUDE_MODEL`,
+  all settable from the Settings page. `CLAUDE_API_KEY` and `ANTHROPIC_API_KEY` are
+  still accepted as environment fallbacks.
+- `getClaudeClient()` rebuilds when the key or base URL changes, so a saved key applies
+  without a restart. The FMP client resolves its key the same way.
+- Documented caveat: two of the eight steps use server-side web search, and on a
+  provider without it those two fail visibly while the other six still run.
+
+### Repository layout
+
+- `portfolio-monitor-product-spec.md` → `docs/product-spec.md`,
+  `portfolio-monitor-technical-plan.md` → `docs/technical-plan.md`.
+
+### Still open
+
+- No responsive pass. Layouts assume a desktop viewport.
+- `POST /api/holdings` still requires a working market-data key, so a keyless user
+  cannot add a ticker by symbol (CSV import works without one).
+- Native support for non-Anthropic API shapes (OpenAI, Gemini) would need a provider
+  adapter; today those work only through a translating gateway.
+- The pipeline has never been exercised against live provider APIs end to end.
 
 ---
 

@@ -33,6 +33,9 @@ export interface AnalyzeStockParams {
   relativePerfData: RelativePerfPoint[];
   pePercentile: number | null;
   onStep?: (step: StepName) => void;
+  /** Called when an individual step throws. The scan continues; this exists so
+   *  the caller can surface the failure instead of leaving a silently empty panel. */
+  onStepError?: (step: StepName, message: string) => void;
   /** Steps to actually run. Omit to run everything (full scan). Steps not in
    *  the set reuse the output stored in `previous`. */
   stepsToRun?: Set<StepName>;
@@ -43,7 +46,7 @@ export interface AnalyzeStockParams {
 export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   const {
     ticker, holding, quote, fundamentalsBlob, spyQuote, sectorEtfQuote,
-    relativePerfData, pePercentile, onStep, stepsToRun, previous,
+    relativePerfData, pePercentile, onStep, onStepError, stepsToRun, previous,
   } = params;
 
   const companyName = holding.companyName ?? ticker;
@@ -57,6 +60,25 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
   const now = new Date().toISOString();
   const stamp = (step: StepName, ran: boolean) => {
     stepTimestamps[step] = ran ? now : prevTs[step] ?? previous?.scannedAt ?? now;
+  };
+
+  // A step that throws leaves its field null and the scan carries on. Without
+  // recording why, the UI cannot tell "nothing found" from "the call failed",
+  // so the failure is kept on the row and streamed to the caller.
+  const prevErrors = previous?.stepErrors ?? {};
+  const stepErrors: Record<string, string> = {};
+  const fail = (step: StepName, stepNo: number, label: string, err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[Pipeline] Step ${stepNo} (${label}) failed for ${ticker}:`, message);
+    stepErrors[step] = message.slice(0, 300);
+    onStepError?.(step, message);
+  };
+  // A skipped step reuses the previous output, so it also inherits whatever
+  // error was recorded against that output — a stale failure stays visible
+  // until the step actually succeeds.
+  const carryError = (step: StepName) => {
+    const prev = prevErrors[step];
+    if (prev) stepErrors[step] = prev;
   };
 
   // Partial results — fill in as steps complete
@@ -81,11 +103,12 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
         maxSearches: prompt.maxSearches,
       });
     } catch (err) {
-      console.warn(`[Pipeline] Step 1 (news) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+      fail('news', 1, 'news', err);
     }
   } else {
     newsSentiment = previous?.newsSentiment ?? null;
     stamp('news', false);
+    carryError('news');
   }
 
   // ── Step 2: Fundamental Analysis ──
@@ -107,7 +130,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       userMessage: prompt.userMessage,
     });
   } catch (err) {
-    console.warn(`[Pipeline] Step 2 (fundamentals) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    fail('fundamentals', 2, 'fundamentals', err);
   }
   } else {
     const fm = previous?.fiveMetrics;
@@ -119,6 +142,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       financialHealth: fm.financialHealth?.forwardOutlook ?? '',
     } : null;
     stamp('fundamentals', false);
+    carryError('fundamentals');
   }
 
   // ── Step 3: Sector Relative ──
@@ -164,7 +188,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       userMessage: prompt.userMessage,
     });
   } catch (err) {
-    console.warn(`[Pipeline] Step 3 (sector) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    fail('sector', 3, 'sector', err);
   }
   } else {
     const sr = previous?.sectorRelative;
@@ -174,6 +198,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       relativeStrength: '',
     } : null;
     stamp('sector', false);
+    carryError('sector');
   }
 
   // ── Step 4: Bucket Assignment (always fresh — depends on today's tape) ──
@@ -219,7 +244,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       forward: result.forward,
     };
   } catch (err) {
-    console.warn(`[Pipeline] Step 4 (bucket) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    fail('bucket', 4, 'bucket', err);
   }
 
   // ── Step 5: Thesis Check ──
@@ -248,11 +273,12 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       };
     }
   } catch (err) {
-    console.warn(`[Pipeline] Step 5 (thesis) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    fail('thesis', 5, 'thesis', err);
   }
   } else {
     thesisCheck = previous?.thesisAnalysis ?? null;
     stamp('thesis', false);
+    carryError('thesis');
   }
 
   // ── Step 6: Catalyst Scan ──
@@ -273,11 +299,12 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
       maxSearches: prompt.maxSearches,
     });
   } catch (err) {
-    console.warn(`[Pipeline] Step 6 (catalysts) failed for ${ticker}:`, err instanceof Error ? err.message : err);
+    fail('catalysts', 6, 'catalysts', err);
   }
   } else {
     catalysts = previous?.catalysts ?? null;
     stamp('catalysts', false);
+    carryError('catalysts');
   }
 
   // ── Build sector relative data for DB ──
@@ -322,6 +349,7 @@ export async function analyzeStock(params: AnalyzeStockParams): Promise<void> {
     driverAnalysis: driverAnalysis ? JSON.stringify(driverAnalysis) : null,
     fullAnalysis: null,
     stepTimestamps: JSON.stringify(stepTimestamps),
+    stepErrors: Object.keys(stepErrors).length > 0 ? JSON.stringify(stepErrors) : null,
     scannedAt: now,
   });
 }

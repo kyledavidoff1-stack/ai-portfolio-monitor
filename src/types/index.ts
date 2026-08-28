@@ -115,6 +115,9 @@ export interface AnalysisScan {
   fullAnalysis: Record<string, unknown> | null;
   /** ISO timestamp per pipeline step, tracking when each was last actually run */
   stepTimestamps: Record<string, string> | null;
+  /** Per-step failure messages from the last run, keyed by step name. A step
+   *  present here produced no output because the call threw. */
+  stepErrors: Record<string, string> | null;
   scannedAt: string;
 }
 

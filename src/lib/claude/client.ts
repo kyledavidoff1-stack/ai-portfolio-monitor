@@ -1,19 +1,38 @@
-// Claude API client wrapper
+// AI client wrapper.
+//
+// The pipeline speaks the Anthropic Messages API. The key, model and base URL
+// are resolved from the Settings page first and the environment second, so a
+// user can point this at their own account, a self-hosted gateway, or any proxy
+// that implements the same API shape without editing files.
 import Anthropic from '@anthropic-ai/sdk';
-import { CLAUDE_MODEL } from '@/lib/config/constants';
+import { getSetting, getAiModel } from '@/lib/config/settings';
 
 let _client: Anthropic | null = null;
+let _clientKey = ''; // identity of the config the cached client was built from
 
 export function getClaudeClient(): Anthropic {
-  if (!_client) {
-    const apiKey = process.env.CLAUDE_API_KEY;
-    if (!apiKey) throw new Error('CLAUDE_API_KEY is not set. Add it to .env.local');
-    _client = new Anthropic({ apiKey });
+  const apiKey = getSetting('AI_API_KEY');
+  const baseURL = getSetting('AI_BASE_URL');
+  if (!apiKey) {
+    throw new Error(
+      'No AI API key configured. Add one on the Settings page, or set CLAUDE_API_KEY in .env.local',
+    );
+  }
+
+  // Rebuild when the configuration changes so a key saved in Settings takes
+  // effect immediately rather than after a restart.
+  const identity = `${apiKey}::${baseURL ?? ''}`;
+  if (!_client || _clientKey !== identity) {
+    _client = new Anthropic(baseURL ? { apiKey, baseURL } : { apiKey });
+    _clientKey = identity;
   }
   return _client;
 }
 
-export { CLAUDE_MODEL };
+/** Model for pipeline calls. Read per call so a Settings change applies at once. */
+export function getModel(): string {
+  return getAiModel();
+}
 
 // ── callClaude<T> — main wrapper for all AI pipeline calls ────────────────────
 
@@ -82,7 +101,7 @@ export async function callClaude<T>(options: CallClaudeOptions): Promise<T> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       const response = await client.messages.create({
-        model: CLAUDE_MODEL,
+        model: getModel(),
         max_tokens: maxTokens,
         system: `${GLOBAL_SYSTEM_PREFIX}\n\n${system}`,
         messages: [{ role: 'user', content: userMessage }],
@@ -106,7 +125,7 @@ export async function callClaude<T>(options: CallClaudeOptions): Promise<T> {
           console.warn(`[Claude] JSON parse failed on attempt ${attempt + 1}, retrying with fix prompt`);
           try {
             const fixResponse = await client.messages.create({
-              model: CLAUDE_MODEL,
+              model: getModel(),
               max_tokens: maxTokens,
               system: 'You previously produced invalid JSON. Return ONLY the corrected JSON, no explanation.',
               messages: [

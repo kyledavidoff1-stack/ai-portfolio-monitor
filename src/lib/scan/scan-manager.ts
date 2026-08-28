@@ -30,7 +30,7 @@ const STEP_LABELS: Record<StepName, string> = {
 };
 
 export interface ScanProgress {
-  event: 'progress' | 'error' | 'complete';
+  event: 'progress' | 'error' | 'step_error' | 'complete';
   data: Record<string, unknown>;
 }
 
@@ -48,6 +48,9 @@ export interface ScanState {
   stepsRun: number;
   /** Steps that would have run if nothing were cached */
   stepsPossible: number;
+  /** Individual pipeline steps that threw during this run. The scan continues
+   *  past a failed step, so these are reported rather than aborting. */
+  stepFailures: Array<{ ticker: string; step: string; message: string }>;
   error?: string;
 }
 
@@ -63,6 +66,7 @@ let scanState: ScanState = {
   mode: 'auto',
   stepsRun: 0,
   stepsPossible: 0,
+  stepFailures: [],
 };
 
 let scanPromise: Promise<void> | null = null;
@@ -84,6 +88,7 @@ function resetState(mode: ScanMode) {
     mode,
     stepsRun: 0,
     stepsPossible: 0,
+    stepFailures: [],
   };
 }
 
@@ -256,6 +261,16 @@ async function runScan(mode: ScanMode) {
               step,
             });
           },
+          onStepError: (step, message) => {
+            const short = message.slice(0, 200);
+            scanState.stepFailures.push({ ticker, step, message: short });
+            pushEvent('step_error', {
+              ticker,
+              step,
+              stepLabel: STEP_LABELS[step] ?? step,
+              message: short,
+            });
+          },
         });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -303,8 +318,12 @@ async function runScan(mode: ScanMode) {
     });
 
     const skipped = scanState.stepsPossible - scanState.stepsRun;
-    scanState.message = skipped > 0
-      ? `Scan complete — analyzed ${allHoldings.length} stocks (${skipped} cached step${skipped === 1 ? '' : 's'} skipped)`
+    const failed = scanState.stepFailures.length;
+    const parts: string[] = [];
+    if (skipped > 0) parts.push(`${skipped} cached step${skipped === 1 ? '' : 's'} skipped`);
+    if (failed > 0) parts.push(`${failed} step${failed === 1 ? '' : 's'} failed`);
+    scanState.message = parts.length > 0
+      ? `Scan complete — analyzed ${allHoldings.length} stocks (${parts.join(', ')})`
       : `Scan complete — analyzed ${allHoldings.length} stocks`;
     pushEvent('complete', {
       scannedCount: allHoldings.length,
@@ -312,6 +331,8 @@ async function runScan(mode: ScanMode) {
       mode,
       stepsRun: scanState.stepsRun,
       stepsSkipped: skipped,
+      stepsFailed: failed,
+      stepFailures: scanState.stepFailures,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

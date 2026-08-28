@@ -56,5 +56,6 @@ export const REGIME_LABELS: Record<string, string> = {
 // Minimum price history days required for correlation/beta
 export const MIN_PRICE_HISTORY_DAYS = 90;
 
-// Claude model
-export const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-4-6';
+// Model choice now lives in lib/config/settings.ts so it can be changed from the
+// Settings page at runtime. Import getAiModel() from there rather than reading
+// an env var directly.

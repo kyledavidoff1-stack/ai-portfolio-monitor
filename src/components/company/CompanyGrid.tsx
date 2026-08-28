@@ -96,6 +96,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
   const { width, containerRef, mounted } = useContainerWidth();
 
   // Extract AI scan data
+  const stepErrors = latestScan?.stepErrors ?? {};
   const sentiment: NewsSentiment | null = latestScan?.newsSentiment ?? null;
   const driverAnalysis: DriverAnalysis | null = latestScan?.driverAnalysis ?? null;
   const thesisCheck: ThesisCheck | null = latestScan?.thesisAnalysis ?? null;
@@ -168,6 +169,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 )
               }
             >
+              {stepErrors.news && <StepFailed message={stepErrors.news} />}
               {sentiment ? (
                 <div className="space-y-3 overflow-y-auto max-h-[calc(100%-2rem)]">
                   {/* Summary */}
@@ -291,6 +293,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 )
               }
             >
+              {stepErrors.thesis && <StepFailed message={stepErrors.thesis} />}
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[13px] font-semibold text-gray-400 uppercase tracking-widest">
@@ -400,6 +403,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 </div>
               }
             >
+              {stepErrors.bucket && <StepFailed message={stepErrors.bucket} />}
               <div className="divide-y divide-gray-800/50">
                 <TimeSection period="Today" label="Current drivers">
                   <BucketDots active={driverAnalysis?.today.primaryBucket ?? null} />
@@ -488,6 +492,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 )
               }
             >
+              {stepErrors.sector && <StepFailed message={stepErrors.sector} />}
               <div className="divide-y divide-gray-800/50">
 
                 <TimeSection period="Today" label="Relative performance">
@@ -562,6 +567,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 )
               }
             >
+              {stepErrors.catalysts && <StepFailed message={stepErrors.catalysts} />}
               {catalysts.length > 0 ? (
                 <>
                   <CatalystTimelineReal catalysts={catalysts} />
@@ -620,6 +626,7 @@ export default function CompanyGrid({ ticker, sectorEtf, initialThesis, fiveCard
                 </div>
               }
             >
+              {stepErrors.fundamentals && <StepFailed message={stepErrors.fundamentals} />}
               <FiveNumbers cards={fiveCards} showHeader={false} />
             </DraggablePanel>
           </div>
@@ -1210,6 +1217,24 @@ function PeerCompTable({ peerRows }: { peerRows: PeerRow[] }) {
 
 function Placeholder({ text }: { text: string }) {
   return <p className="text-xs text-gray-300 italic leading-relaxed">{text}</p>;
+}
+
+/** Shown when the pipeline step that fills a panel threw on the last scan.
+ *  Without this, a failed step and a step that genuinely found nothing both
+ *  render as an empty panel. */
+function StepFailed({ message }: { message: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-amber-900/60 bg-amber-950/30 px-2.5 py-2">
+      <svg className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-px" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path fillRule="evenodd" d="M8 16A8 8 0 108 0a8 8 0 000 16zM8 4a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 100-2 1 1 0 000 2z" />
+      </svg>
+      <div className="min-w-0">
+        <p className="text-[12px] font-medium text-amber-300">This step failed on the last scan</p>
+        <p className="text-[12px] text-gray-400 leading-relaxed break-words">{message}</p>
+        <p className="text-[12px] text-gray-500 mt-1">Re-run it with the refresh button in this panel&apos;s header.</p>
+      </div>
+    </div>
+  );
 }
 
 function PanelGripIcon() {
