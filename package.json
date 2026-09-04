@@ -2,6 +2,9 @@
   "name": "portfolio-monitor",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "setup": "npm install && npm run db:migrate && npm run dev",
     "setup:demo": "npm install && npm run db:migrate && npm run seed:demo && npm run dev",
@@ -17,7 +20,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.81.0",
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^12.11.1",
     "d3-sankey": "^0.12.3",
     "drizzle-orm": "^0.38.0",
     "next": "^15.2.3",

@@ -166,6 +166,27 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 
 ---
 
+## 2026-09-04 (later) — Node 26 install failure
+
+`npm run setup:demo` failed on a fresh machine running **Node v26.7.0**. `better-sqlite3`
+is a native module: it ships prebuilt binaries per Node ABI, found none for Node 26, fell
+back to `node-gyp`, and the pinned 11.x source does not compile against Node 26's V8 —
+`GetPrototype` is now `GetPrototypeV2`, and `PropertyCallbackInfo::This` is gone. Six
+compile errors, no usable install.
+
+- Bumped `better-sqlite3` `^11.0.0` → `^12.11.1`. 12.11.1 declares
+  `engines.node: "20.x || 22.x || 23.x || 24.x || 25.x || 26.x"`; 11.x claimed nothing past
+  the older ABIs. Verified against the existing database, `npm test` (27/27), `tsc
+  --noEmit`, `db:migrate`, and a production build — no API changes needed.
+- Added `engines.node: ">=22"` to `package.json` and a `.nvmrc` pinning 22.
+- README step 1 said "version 22 or newer", which reads as an invitation to install the
+  newest release — the exact thing that breaks. It now points at the LTS button
+  specifically and explains why, and Troubleshooting has an entry for the `node-gyp`
+  failure including the `rm -rf node_modules package-lock.json` that a plain retry needs.
+- Fixed two unclosed `**` in the README screenshot captions.
+
+---
+
 ## 2026-09-04 — Renamed to AI Portfolio Monitor; one-command setup; flush panel rows
 
 **Renamed.** The product is now **AI Portfolio Monitor**. The nav title, page `<title>`,
