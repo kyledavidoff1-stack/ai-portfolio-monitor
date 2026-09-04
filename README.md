@@ -1,4 +1,4 @@
-# Portfolio Monitor
+# AI Portfolio Monitor
 
 **Why is this stock moving, is my thesis still right, and what's coming next?**
 
