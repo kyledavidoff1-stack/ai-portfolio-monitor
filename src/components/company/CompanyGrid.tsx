@@ -16,7 +16,7 @@ import { BUCKET_LABELS, BUCKET_COLORS } from '@/lib/config/constants';
 import { StepRefreshButton } from './StepRefreshButton';
 
 // Bump key to force-reset any cached layouts when the default arrangement changes
-const STORAGE_KEY = 'pm:company-layout-v9';
+const STORAGE_KEY = 'pm:company-layout-v10';
 const ROW_HEIGHT = 50;
 const MARGIN: [number, number] = [12, 12];
 
@@ -37,19 +37,20 @@ const MARGIN: [number, number] = [12, 12];
 // Row 5: Fundamentals full-width at y=41, h=6
 
 const DEFAULT_LAYOUT: LayoutItem[] = [
-  // Row 1: Driver (left, 40%) | Thesis (right, 60%)
+  // Each row's panels share a height so side-by-side tiles end flush.
+  // Row 1: Driver (40%) | Thesis (60%)
   { i: 'driver',       x: 0,  y: 0,  w: 5,  h: 10, minW: 3, minH: 3 },
-  { i: 'thesis',       x: 5,  y: 0,  w: 7,  h: 9,  minW: 4, minH: 4 },
-  // Row 2: Sentiment & SectorRel — both end at y=20
-  { i: 'sentiment',    x: 0,  y: 10, w: 5,  h: 10, minW: 3, minH: 5 },
-  { i: 'sectorrel',    x: 5,  y: 9,  w: 7,  h: 11, minW: 4, minH: 5 },
-  // Row 3: Catalysts full-width, y=20
-  { i: 'catalysts',    x: 0,  y: 20, w: 12, h: 6,  minW: 6, minH: 3 },
-  // Row 4: Metrics & Revenue Flow — both end at y=41
-  { i: '5numbers',     x: 0,  y: 26, w: 5,  h: 15, minW: 3, minH: 5 },
-  { i: 'revenueflow',  x: 5,  y: 26, w: 7,  h: 15, minW: 5, minH: 5 },
+  { i: 'thesis',       x: 5,  y: 0,  w: 7,  h: 10, minW: 4, minH: 4 },
+  // Row 2: Sentiment | Sector-relative
+  { i: 'sentiment',    x: 0,  y: 10, w: 5,  h: 11, minW: 3, minH: 5 },
+  { i: 'sectorrel',    x: 5,  y: 10, w: 7,  h: 11, minW: 4, minH: 5 },
+  // Row 3: Catalysts full-width
+  { i: 'catalysts',    x: 0,  y: 21, w: 12, h: 6,  minW: 6, minH: 3 },
+  // Row 4: Metrics | Revenue Flow
+  { i: '5numbers',     x: 0,  y: 27, w: 5,  h: 12, minW: 3, minH: 5 },
+  { i: 'revenueflow',  x: 5,  y: 27, w: 7,  h: 12, minW: 5, minH: 5 },
   // Row 5: Fundamentals full-width
-  { i: 'fundamentals', x: 0,  y: 41, w: 12, h: 6,  minW: 6, minH: 3 },
+  { i: 'fundamentals', x: 0,  y: 39, w: 12, h: 6,  minW: 6, minH: 3 },
 ];
 
 function loadLayout(): LayoutItem[] {

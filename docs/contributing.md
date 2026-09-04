@@ -8,8 +8,8 @@ Contributions are welcome, particularly in the areas listed at the bottom.
 ## Getting set up
 
 ```bash
-git clone https://github.com/kyledavidoff1-stack/portfolio-monitor.git
-cd portfolio-monitor
+git clone https://github.com/kyledavidoff1-stack/ai-portfolio-monitor.git
+cd ai-portfolio-monitor
 npm install
 npm run db:push        # create ./data/portfolio.db from the schema
 npm run seed:demo      # optional: realistic demo data, no API keys needed

@@ -1,6 +1,6 @@
 # CLAUDE.md — Project Notes for Claude Code
 
-Portfolio Monitor is a **local-first Next.js 15 portfolio intelligence app**. For every stock a
+AI Portfolio Monitor is a **local-first Next.js 15 portfolio intelligence app**. For every stock a
 user holds it answers two questions: *why is this moving right now?* (classified into four driver
 buckets) and *what should I watch over the next 90 days?* Data comes from Financial Modeling Prep
 (FMP); the analysis comes from an 8-step Claude pipeline. Everything persists to a local SQLite
@@ -11,6 +11,8 @@ file — nothing leaves the machine except API calls.
 ## Commands
 
 ```bash
+npm run setup        # install + db:migrate + dev — the one-command path for new users
+npm run setup:demo   # same, plus seed:demo
 npm run dev          # clears .next cache, then starts on :3000
 npm run build        # production build — also the type-check gate
 npm start            # serve a production build
@@ -311,7 +313,7 @@ Other UI rules:
   4 = Fundamental Change (emerald).
 - Minimum readable font size is 12px (`text-xs`/`text-[13px]`). Numbers render in `font-mono`.
 - Grids are `react-grid-layout`; layouts and panel collapse state persist to localStorage under
-  versioned `pm:` keys (`pm:columns-v4`, `pm:col-order-v4`, `pm:company-layout-v8`,
+  versioned `pm:` keys (`pm:columns-v4`, `pm:col-order-v4`, `pm:company-layout-v10`,
   `pm:panel-collapse:*`, `pm:dash-collapse:*`). **When you change a default layout or column set,
   bump the key version** — otherwise existing users keep stale saved state and won't see the change.
   All reads/writes are wrapped in try/catch.
