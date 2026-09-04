@@ -1,6 +1,6 @@
-# CHANGELOG — Portfolio Monitor
+# CHANGELOG — AI Portfolio Monitor
 
-> Last updated: 2026-08-28
+> Last updated: 2026-09-04
 > Purpose: Session context for continuing development. Documents what's built, what changed post-sprint, and what's next.
 
 ---
@@ -163,6 +163,54 @@ These changes were made after Sprint 4 implementation, during UI integration ses
 
 ### Prompt Testing Interface
 - Added `/settings/prompt-test` page for testing Claude prompts against holdings
+
+---
+
+## 2026-09-04 — Renamed to AI Portfolio Monitor; one-command setup; flush panel rows
+
+**Renamed.** The product is now **AI Portfolio Monitor**. The nav title, page `<title>`,
+footer, README, and `docs/contributing.md` all use the new name, and the repo URL in those
+files points at `ai-portfolio-monitor`. The `/ intelligence` suffix after the nav title is
+gone.
+
+**Header alignment.** The nav and footer containers were `max-w-7xl px-4 sm:px-6 lg:px-8`
+while `<main>` was `max-w-[1600px] px-6`, so the title sat inset from the content below it.
+All three now share the `<main>` container, and the title's left edge lines up with the
+leftmost panel on every page.
+
+**Setup is one terminal command.** Added `npm run setup` (install → `db:migrate` → `dev`)
+and `npm run setup:demo` (the same, plus `seed:demo`). The README's "Use it with your own
+portfolio" section went from nine steps with six separate commands to six steps with one:
+
+```bash
+git clone https://github.com/kyledavidoff1-stack/ai-portfolio-monitor.git && cd ai-portfolio-monitor && npm run setup
+```
+
+Everything after that — keys, positions, theses, the first scan — happens in the app. Both
+scripts are safe to re-run; `db:migrate` is idempotent and neither touches existing
+holdings. Failure modes that used to be buried in prose (`git`/`npm` not found, port 3000
+busy) are now a collapsed troubleshooting block right under the command, and the
+`.env.local` path is collapsed too since the Settings page is the primary route.
+
+**Panels in a row now end flush.** Two separate causes:
+
+- *Dashboard* — `DraggablePanel` sized to its content inside a `grid grid-cols-12` cell, so
+  the shorter of two side-by-side panels left a ragged gap below it. Added `h-full` to the
+  panel shell and `flex-1 min-h-0` to its (expanded) content wrapper, so each panel fills
+  its grid row. Row heights now match exactly: 354/354, 548/548.
+- *Company page* — `DEFAULT_LAYOUT` used a masonry-style pack where row-mates started and
+  ended at different `y` (driver `h:10` vs thesis `h:9`, sentiment `y:10` vs sectorrel
+  `y:9`). Each row's panels now share a `y` and an `h`. Row 4 came down from `h:15` to
+  `h:12` — the measured content did not need the extra 186px. `STORAGE_KEY` bumped
+  `pm:company-layout-v9` → `v10` so existing users pick up the new defaults.
+
+Where content is now taller than its row it clips or scrolls rather than stretching the
+row; that is the intended trade for flush edges.
+
+**Screenshots regenerated** at 1680×1200, 2× DPI, from a production build against freshly
+seeded demo data. The previous `company.png` had been captured after the fundamentals cache
+aged past its 24h TTL, so the Metrics, Revenue Flow, and Fundamentals panels were all
+showing "Financial data unavailable" empty states. Re-seed before capturing.
 
 ---
 

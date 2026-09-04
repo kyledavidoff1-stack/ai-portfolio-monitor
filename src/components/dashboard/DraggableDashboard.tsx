@@ -196,7 +196,7 @@ function DraggablePanel({
 }) {
   const isCollapsible = onToggle != null;
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg flex flex-col">
+    <div className="bg-gray-900 border border-gray-800 rounded-lg flex flex-col h-full">
       <div className={`panel-drag-handle flex items-center gap-2 px-4 h-9 ${collapsed ? '' : 'border-b border-gray-800/60'} select-none shrink-0`}>
         <PanelGripIcon />
         <h3 className="text-[13px] font-semibold text-gray-300 uppercase tracking-widest">{title}</h3>
@@ -212,7 +212,7 @@ function DraggablePanel({
         )}
       </div>
       <div className={`grid transition-[grid-template-rows] duration-200 ease-in-out ${
-        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr] flex-1 min-h-0'
       }`}>
         <div className="overflow-hidden">
           <div className="p-4">

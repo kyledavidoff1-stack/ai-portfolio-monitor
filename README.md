@@ -2,7 +2,7 @@
 
 **Why is this stock moving, is my thesis still right, and what's coming next?**
 
-Portfolio Monitor is a local-first research tool for people who hold a handful of
+AI Portfolio Monitor is a local-first research tool for people who hold a handful of
 stocks and want a structured second read on them. You bring your own positions and
 your own API keys; everything runs on your machine and nothing is uploaded anywhere.
 
@@ -13,7 +13,7 @@ your own API keys; everything runs on your machine and nothing is uploaded anywh
 ## The problem it solves
 
 Most portfolio tools tell you *what* your positions did. The hard part is *why*, and
-whether the reason should change your mind. Portfolio Monitor is built around six
+whether the reason should change your mind. AI Portfolio Monitor is built around six
 questions:
 
 **1. Is this move about the company, or about the market?**
@@ -62,13 +62,13 @@ already hold. AI output can be wrong — verify anything you plan to act on.
 The fastest way to decide whether this is useful to you. No keys, no signup:
 
 ```bash
-git clone https://github.com/kyledavidoff1-stack/portfolio-monitor.git
-cd portfolio-monitor
-npm install
-npm run db:migrate   # create the local database
-npm run seed:demo    # load a demo portfolio
-npm run dev
+git clone https://github.com/kyledavidoff1-stack/ai-portfolio-monitor.git
+cd ai-portfolio-monitor
+npm run setup:demo
 ```
+
+That one command installs dependencies, creates the local database, loads the demo
+portfolio, and starts the app. It takes a couple of minutes the first time.
 
 Open [http://localhost:3000](http://localhost:3000). Every panel renders with a
 five-holding demo portfolio — driver analysis, theses, sentiment, catalysts,
@@ -100,115 +100,116 @@ HOLDINGS_CSV=./my-holdings.csv npm run seed:demo
 
 ## Use it with your own portfolio
 
-### Step 1 — Requirements
+Everything after the first command happens **in the app**. You only need the terminal once.
 
-- **Node.js 22 or newer.** The app itself runs on Node 18+, but the test runner needs
-  22+, so 22 is the simpler target.
-- npm.
+### Step 1 — Install Node.js
 
-### Step 2 — Get your two API keys
+Download the **LTS** installer from [nodejs.org](https://nodejs.org) and run it. You need
+version 22 or newer. That is the only prerequisite; npm comes with it.
 
-You bring your own keys. They are read from a local file and never leave your machine.
+### Step 2 — Run one command
 
-| Key | What it does | Where | Cost |
-|-----|--------------|-------|------|
+Open Terminal (macOS: ⌘-Space, type "Terminal") or PowerShell (Windows), then paste this
+and press Enter:
+
+```bash
+git clone https://github.com/kyledavidoff1-stack/ai-portfolio-monitor.git && cd ai-portfolio-monitor && npm run setup
+```
+
+It installs dependencies, creates a local SQLite database at `./data/portfolio.db`, and
+starts the app. First run takes a few minutes. When it prints `ready`, open
+[http://localhost:3000](http://localhost:3000).
+
+Leave that terminal window open — closing it stops the app. To start it again later,
+run the same command from inside the folder (`npm run setup`); it is safe to re-run and
+will not touch your data.
+
+<details>
+<summary>If the command fails</summary>
+
+- **`git: command not found`** — install [Git](https://git-scm.com/downloads), or
+  download the repo as a ZIP from the green **Code** button on GitHub, unzip it, then in
+  the terminal `cd` into the folder and run `npm run setup`.
+- **`npm: command not found`** — Node.js did not install correctly, or the terminal
+  needs restarting. Quit and reopen it.
+- **Port 3000 already in use** — something else is on that port. Run
+  `kill $(lsof -ti:3000)` (macOS/Linux) and try again.
+
+</details>
+
+### Step 3 — Add your API keys
+
+Click **Settings** in the top bar, paste each key, and hit **Test connection** to confirm
+it works before you spend anything on a scan. Keys are saved to your local database and
+never leave your machine.
+
+| Key | What it does | Where to get it | Cost |
+|-----|--------------|-----------------|------|
 | **Financial Modeling Prep** | Prices, financial statements, company profiles, peers | [financialmodelingprep.com](https://financialmodelingprep.com/developer) | Free tier: 250 requests/day. Starter is $14/month. |
-| **Anthropic (Claude)** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) | Pay per use — see [Costs](#costs-and-limits). |
+| **AI provider** | The eight-step analysis pipeline | [console.anthropic.com](https://console.anthropic.com) | Pay per use — see [Costs](#costs-and-limits). |
 
-**On the AI key.** Pasting the key is all the setup there is — a current model is
-picked for you. If you want a different model, or you would rather route through a
-gateway or proxy that speaks the Anthropic Messages API, both are available under
-**Advanced** on the Settings page. Three of the eight steps (news, catalysts, and the
-regime check) ask the model to search the web using Anthropic's server-side search
-tool; through a gateway those three work only if it translates that tool for its
-backend, and if it doesn't they fail with a visible message while the other five run.
+**On the AI key.** Pasting the key is all the setup there is — a current model is picked
+for you. If you want a different model, or you would rather route through a gateway or
+proxy that speaks the Anthropic Messages API, both are available under **Advanced** on
+the Settings page. Three of the eight steps (news, catalysts, and the regime check) ask
+the model to search the web using Anthropic's server-side search tool; through a gateway
+those three work only if it translates that tool for its backend, and if it doesn't they
+fail with a visible message while the other five run.
 
-**What breaks without each key.** With no FMP key you can still run the app, add
-holdings from a CSV, and read seeded data — but live quotes and fresh financials will
-not load. With no Claude key everything renders except the AI analysis, and the scan
-button will fail. The app is built to degrade rather than crash: missing data shows an
-explicit empty state, and quotes fall back to the most recent cached daily close
-(labelled as end-of-day rather than pretending to be live).
+**What breaks without each key.** With no FMP key you can still run the app, import
+holdings from a CSV, and read seeded data — but live quotes and fresh financials will not
+load. With no AI key everything renders except the analysis, and the scan will fail. The
+app degrades rather than crashes: missing data shows an explicit empty state, and quotes
+fall back to the most recent cached daily close, labelled end-of-day rather than
+pretending to be live.
 
-### Step 3 — Install and configure
+<details>
+<summary>Prefer a config file to the Settings page?</summary>
 
-```bash
-git clone https://github.com/kyledavidoff1-stack/portfolio-monitor.git
-cd portfolio-monitor
-npm install
-```
-
-You can add your keys **in the app** — start it (steps 4 and 5), open **Settings**, paste
-them in, and hit **Test connection** on each to confirm they work before you spend
-anything on a scan. Keys entered there are stored in your local database.
-
-If you would rather use a file:
-
-```bash
-cp .env.local.example .env.local
-```
+Copy `.env.local.example` to `.env.local` and fill in:
 
 ```bash
 FMP_API_KEY=your_fmp_api_key_here
-AI_API_KEY=your_anthropic_api_key_here
+AI_API_KEY=your_ai_api_key_here
 ```
 
-`.env.local` is gitignored. A key saved in Settings takes precedence over the file;
-clear the field in Settings to fall back to it. Either way the keys stay on your
-machine — in plain text, at the same trust level as any local dotfile.
+`.env.local` is gitignored. A key saved in Settings takes precedence over the file; clear
+the field in Settings to fall back to it. Either way the keys stay on your machine — in
+plain text, at the same trust level as any local dotfile.
 
-### Step 4 — Create the database
+</details>
 
-```bash
-npm run db:migrate
-```
+### Step 4 — Add your positions
 
-This creates `./data/portfolio.db`, a local SQLite file. There is no cloud component
-and no account to create.
-
-### Step 5 — Start the app
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000). If the port is taken, stop the
-old process first: `kill $(lsof -ti:3000)`.
-
-### Step 6 — Add your positions
-
-Three ways, all under **Add ticker** in the Holdings panel:
+**Add ticker** in the Holdings panel, three ways:
 
 - **Type a ticker.** Company name, sector, sector ETF, and beta are filled in from FMP.
   Shares and cost basis are optional but needed for P&L and portfolio-weighted beta.
 - **Upload a CSV.** Header-aware; a plain broker export or a bare list of tickers both
   work. With no header row it assumes `ticker,shares,cost_basis`.
 - **Seed from a file** with `HOLDINGS_CSV=./my-holdings.csv npm run seed:demo` if you
-  would rather start from disk.
+  would rather start from disk. Note this replaces the database contents.
 
-### Step 7 — Write a thesis for each holding
+### Step 5 — Write a thesis for each holding
 
 **Do this before your first scan.** The thesis is the input to the thesis-check step —
 without one, that part of the analysis has nothing to work against and stays empty.
 
-Click a holding to open its company page and write, in your own words, why you own it
-and what has to be true for it to work. A few sentences is enough. Good theses are
-falsifiable: *"AWS re-accelerates above 20% and retail margins hold above 6%"* gives
-the scan something to check. *"Great company"* does not.
+Click a holding to open its company page and write, in your own words, why you own it and
+what has to be true for it to work. A few sentences is enough. Good theses are
+falsifiable: *"AWS re-accelerates above 20% and retail margins hold above 6%"* gives the
+scan something to check. *"Great company"* does not.
 
-### Step 8 — Run your first scan
+### Step 6 — Run your first scan
 
-Hit **Full** on the dashboard. Budget a few minutes per holding on a first run — each
-one runs six analysis steps, two of which search the web, and the whole portfolio then
-gets a regime check and an anomaly pass. Later delta scans are much faster.
+Hit **Full** on the dashboard. Budget a few minutes per holding on a first run — each one
+runs six analysis steps, three of which search the web, and the whole portfolio then gets
+a regime check and an anomaly pass. Later delta scans are much faster.
 
 The scan runs server-side. You can navigate away, reload, or close the tab and it keeps
-going; reopening the dashboard reconnects to the progress stream. Watch the progress bar
-for per-ticker status.
+going; reopening the dashboard reconnects to the progress stream.
 
-### Step 9 — Read the results
-
-See below.
+Then read the results — see below.
 
 ---
 
@@ -349,7 +350,7 @@ point for your own work, not a conclusion.
 ## Architecture
 
 ```
-Portfolio Monitor
+AI Portfolio Monitor
 ├── Next.js App Router (frontend + API routes)
 ├── SQLite via Drizzle ORM (local data store)
 ├── Financial Modeling Prep API (structured financial data)
@@ -402,7 +403,7 @@ poorly, and a responsive pass (layouts currently assume a desktop viewport).
 
 ## Disclaimer
 
-Portfolio Monitor is a research and monitoring tool, not investment advice. AI output
+AI Portfolio Monitor is a research and monitoring tool, not investment advice. AI output
 can be wrong or out of date, and market data may be delayed or incomplete. Verify
 anything you plan to act on.
 

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "npm install && npm run db:migrate && npm run dev",
+    "setup:demo": "npm install && npm run db:migrate && npm run seed:demo && npm run dev",
     "dev": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
