@@ -6,11 +6,11 @@ AI Portfolio Monitor is a local-first research tool for people who hold a handfu
 stocks and want a structured second read on them. You bring your own positions and
 your own API keys; everything runs on your machine and nothing is uploaded anywhere.
 
-**Dashboard Preview
+**Dashboard preview**
 
 ![Portfolio dashboard](docs/images/dashboard.png)
 
-**Individual Position Preview
+**Individual position preview**
 
 ![Company detail](docs/images/company.png)
 
@@ -110,8 +110,13 @@ Everything after the first command happens **in the app**. You only need the ter
 
 ### Step 1 — Install Node.js
 
-Download the **LTS** installer from [nodejs.org](https://nodejs.org) and run it. You need
-version 22 or newer. That is the only prerequisite; npm comes with it.
+Download the **LTS** installer from [nodejs.org](https://nodejs.org) — the big green button
+on the left, not the "Current" one. That is the only prerequisite; npm comes with it.
+
+Node 22 or newer works. Take the LTS rather than the newest release: this app uses
+`better-sqlite3`, which ships precompiled binaries per Node version, and a Node release
+that is only days old usually has none yet — npm then tries to compile it from source and
+fails with a page of C++ errors. See [Troubleshooting](#troubleshooting) if you hit that.
 
 ### Step 2 — Run one command
 
@@ -328,6 +333,19 @@ daily. Treat these as estimates and watch your first month.
 already clears the server-side Next.js cache on every start.
 
 **Port 3000 is in use.** `kill $(lsof -ti:3000)`.
+
+**`npm run setup` fails with `node-gyp` / `better-sqlite3` C++ errors.** Your Node version
+is newer than the precompiled database binaries. Check with `node -v`. The fix is to
+install the **LTS** release from [nodejs.org](https://nodejs.org), then clear the failed
+install and retry:
+
+```bash
+rm -rf node_modules package-lock.json
+npm run setup
+```
+
+The `rm -rf` matters — npm caches the broken build, so re-running without it fails the
+same way.
 
 **A panel is empty.** Either that holding has not been scanned yet, or the data
 provider has nothing for the ticker. Company pages tell you which: a "Run scan to…"
