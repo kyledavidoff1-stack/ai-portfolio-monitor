@@ -6,7 +6,13 @@ AI Portfolio Monitor is a local-first research tool for people who hold a handfu
 stocks and want a structured second read on them. You bring your own positions and
 your own API keys; everything runs on your machine and nothing is uploaded anywhere.
 
+**Dashboard Preview
+
 ![Portfolio dashboard](docs/images/dashboard.png)
+
+**Individual Position Preview
+
+![Company detail](docs/images/company.png)
 
 ---
 
@@ -257,8 +263,6 @@ The command strip shows the market regime — **risk-on**, **risk-off**, **rotat
 **dislocation** — as context for everything below it. An **anomaly flag** means a
 holding diverged from what the regime and its beta would predict. That divergence is
 usually the most information-dense thing on the page.
-
-![Company detail](docs/images/company.png)
 
 The company page adds sentiment broken out by source, a relative-performance chart
 against the stock's sector ETF and SPY, TTM peer comparison, a revenue-flow diagram,
